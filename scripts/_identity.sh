@@ -1,4 +1,10 @@
+# shellcheck shell=bash
 # Source this file. Sets AutoMem identity + settings env vars.
+# Not executed directly — must be sourced by other hook scripts.
+#
+# Side effects:
+#   - Ensures $HOME/.automem-plugin/state/ exists (overridable via AUTOMEM_STATE_DIR)
+#   - Exports AUTOMEM_STATE_DIR for downstream scripts
 #
 # Resolution order for user (informational only — AutoMem itself has no
 # user_id concept; we keep this for log lines and consistency with mem0):
@@ -9,6 +15,14 @@
 # Settings loaded from ~/.automem-plugin/settings.json (with defaults)
 
 _SCRIPT_DIR="$( cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd )"
+
+# Ensure the per-user state directory exists. Used for session id, stats,
+# rubric dedup flags, recent reads, etc. — replaces the predictable
+# /tmp/automem_*_${USER} paths from v0.1.4 (vulnerable to symlink attacks
+# and cross-user glob deletion).
+AUTOMEM_STATE_DIR="${AUTOMEM_STATE_DIR:-$HOME/.automem-plugin/state}"
+mkdir -p "$AUTOMEM_STATE_DIR" 2>/dev/null || true
+export AUTOMEM_STATE_DIR
 
 _automem_resolve_user_id() {
   if [ -n "${AUTOMEM_USER_ID:-}" ]; then

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Session stats tracker for the automem plugin.
 
-Tracks store/recall calls per session in /tmp/automem_session_stats_$USER.json.
+Tracks store/recall calls per session in $AUTOMEM_STATE_DIR/session_stats.json
+(default: ~/.automem-plugin/state/session_stats.json).
 Reset on `init` (called by on_session_start.sh on source=startup).
 
 Usage:
@@ -20,7 +21,14 @@ import os
 import sys
 from datetime import datetime
 
-STATS_FILE = f"/tmp/automem_session_stats_{os.environ.get('USER', 'default')}.json"
+# Default to $HOME/.automem-plugin/state/ (per-user, safe from symlink attacks).
+# Overridable via AUTOMEM_STATE_DIR — _identity.sh sets it for hook contexts.
+_state_dir = os.environ.get(
+    "AUTOMEM_STATE_DIR",
+    os.path.expanduser("~/.automem-plugin/state"),
+)
+os.makedirs(_state_dir, exist_ok=True)
+STATS_FILE = os.path.join(_state_dir, "session_stats.json")
 MAX_RECENT_IDS = 50
 
 

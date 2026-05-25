@@ -1,4 +1,5 @@
-# Sourced. Sets AUTOMEM_PROJECT_ID and AUTOMEM_BRANCH using _project.py.
+# shellcheck shell=bash
+# Sourced (not executed). Sets AUTOMEM_PROJECT_ID and AUTOMEM_BRANCH using _project.py.
 # Expects AUTOMEM_CWD to be set (defaults to $PWD).
 
 _PROJ_SCRIPT_DIR="$( cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd )"

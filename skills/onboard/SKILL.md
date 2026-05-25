@@ -93,11 +93,11 @@ AutoMem is now active. The SessionStart hook will surface relevant memories
 automatically at the start of each session, and the Stop hook will prompt you
 to store durable facts at the end of each turn.
 
-Useful next commands (when implemented in later phases):
-  /automem:remember "<fact>"  — store a fact verbatim
-  /automem:recall <query>     — semantic search
-  /automem:tour               — browse all memories by type
-  /automem:health             — full diagnostics
+Useful next commands:
+  /automem:remember "<fact>"  — store a fact verbatim (shipped)
+  /automem:recall <query>     — semantic search (shipped)
+  /automem:tour               — browse all memories by type (planned, Phase 5)
+  /automem:health             — full diagnostics (planned, Phase 5)
 ```
 
 ## Idempotence

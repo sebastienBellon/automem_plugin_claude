@@ -29,7 +29,7 @@ if [ -z "${AUTOMEM_PROJECT_ID:-}" ]; then
   AUTOMEM_CWD=$(echo "$INPUT" | jq -r '.cwd // "."' 2>/dev/null || echo ".")
   export AUTOMEM_CWD
   # shellcheck source=_identity.sh
-  . "$SCRIPT_DIR/_identity.sh" 2>/dev/null || true
+  . "$SCRIPT_DIR/_identity.sh" 2>>"$HOME/.automem-plugin/hooks.log" || true
 fi
 PROJECT="${AUTOMEM_PROJECT_ID:-default}"
 

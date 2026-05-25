@@ -1,6 +1,6 @@
 ---
 name: remember
-description: Stores a fact verbatim into AutoMem with the right type, tags, and importance. Use when the user says "remember this", "save this", "store this", "note that", or explicitly asks to record a decision, preference, convention, learning, or workflow.
+description: Stores a fact verbatim into AutoMem with the right type, tags, and importance. Use when the user says "remember this", "save this", "store this", "note that", "retiens ça", "sauvegarde ça", "enregistre", "n'oublie pas", or explicitly asks to record a decision, preference, convention, learning, or workflow.
 ---
 
 # AutoMem Remember

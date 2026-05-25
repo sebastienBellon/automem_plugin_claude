@@ -35,7 +35,7 @@ if [ -z "${AUTOMEM_PROJECT_ID:-}" ]; then
   AUTOMEM_CWD=$(echo "$INPUT" | jq -r '.cwd // "."' 2>/dev/null || echo ".")
   export AUTOMEM_CWD
   # shellcheck source=_identity.sh
-  . "$SCRIPT_DIR/_identity.sh" 2>/dev/null || true
+  . "$SCRIPT_DIR/_identity.sh" 2>>"$HOME/.automem-plugin/hooks.log" || true
 fi
 PROJECT="${AUTOMEM_PROJECT_ID:-unknown}"
 
@@ -56,7 +56,7 @@ FILE_PATHS=$(echo "$PROMPT" | grep -oE '([a-zA-Z0-9_./-]+\.(py|ts|tsx|js|jsx|rs|
 
 # Session resume intent (FR + EN)
 HAS_RESUME=""
-if echo "$PROMPT" | grep -qiE '(where (did )?(we|i) (leave|left) off|continue (from )?(where|last)|what were we (working|doing)|pick up where|resume (from |where)|where are we|catch me up|on en (etait|étions) o[uù]|on en (etait|étions)|reprends? (l[aà])|où on en (etait|était)|recap)'; then
+if echo "$PROMPT" | grep -qiE '(where (did )?(we|i) (leave|left) off|continue (from )?(where|last)|what were we (working|doing)|pick up where|resume (from |where)|where are we|catch me up|on en ([eé]tai[ts]|[eé]tions) (o[uù]|sur|avec|de|du|en|par)|on en ([eé]tai[ts]|[eé]tions)$|on en ([eé]tai[ts]|[eé]tions)[?!. ]|reprends? (l[aà])|o[uù] (on |est-ce qu.on )en ([eé]tai[ts]|[eé]tions)|recap)'; then
   HAS_RESUME="true"
 fi
 
@@ -67,13 +67,14 @@ if echo "$PROMPT" | grep -qiE '(remember (this|that|to)|save (this|that) (fact|i
 fi
 
 # ----- Rubric dedup -----
-# Full "search hint" rubric is injected once per session only
+# Full "search hint" rubric is injected once per session only.
+# Uses $AUTOMEM_STATE_DIR (set by _identity.sh) to avoid the v0.1.4 symlink
+# attack surface on /tmp. AUTOMEM_STATE_DIR is overridable for tests.
 
-RUBRIC_DIR="${AUTOMEM_RUBRIC_DIR:-/tmp}"
 if [ -n "$SESSION_ID" ]; then
-  RUBRIC_FLAG="$RUBRIC_DIR/automem_rubric_${SESSION_ID}"
+  RUBRIC_FLAG="$AUTOMEM_STATE_DIR/rubric_${SESSION_ID}.flag"
 else
-  RUBRIC_FLAG="$RUBRIC_DIR/automem_rubric_injected_${USER}"
+  RUBRIC_FLAG="$AUTOMEM_STATE_DIR/rubric_injected.flag"
 fi
 RUBRIC_ALREADY_SHOWN=""
 if [ -f "$RUBRIC_FLAG" ]; then

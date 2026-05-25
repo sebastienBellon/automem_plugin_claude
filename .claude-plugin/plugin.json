@@ -1,11 +1,12 @@
 {
   "name": "automem",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "Persistent memory for Claude Code via AutoMem (self-hosted FalkorDB + Qdrant). Remembers decisions, patterns, and preferences across sessions — with native graph relationships.",
   "author": {
     "name": "Sébastien Bellon"
   },
-  "homepage": "https://github.com/sebastienbellon/automem-plugin",
+  "homepage": "https://github.com/sebastienBellon/automem_plugin_claude",
+  "repository": "https://github.com/sebastienBellon/automem_plugin_claude",
   "license": "MIT",
   "keywords": ["memory", "personalization", "mcp", "semantic-search", "automem", "graph", "falkordb", "qdrant"],
   "userConfig": {

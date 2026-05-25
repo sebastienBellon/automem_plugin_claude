@@ -1,6 +1,6 @@
 ---
 name: recall
-description: Semantic search across AutoMem memories with smart defaults — uses two parallel recall_memory calls, dedupes, and outputs compact one-liners. Use when the user asks "what do we know about X", "have we decided Y", "remind me about Z", or any question that may benefit from prior context.
+description: Semantic search across AutoMem memories with smart defaults — uses two parallel recall_memory calls, dedupes, and outputs compact one-liners. Use when the user asks "what do we know about X", "have we decided Y", "remind me about Z", "qu'est-ce qu'on sait de X", "on avait décidé quoi pour Y", "rappelle-moi", "on en était où", or any question that may benefit from prior context.
 ---
 
 # AutoMem Recall
@@ -82,7 +82,7 @@ If a result has notable relations from `expand_relations`, append a 2nd indented
 No memories matching "<query>" for project <AUTOMEM_PROJECT_ID>.
 
 Try a broader query, `--global` to search across all projects, or `/automem:tour`
-to browse all memories by type.
+(planned, Phase 5) to browse all memories by type.
 ```
 
 ## Flags

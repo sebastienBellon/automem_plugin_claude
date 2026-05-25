@@ -27,22 +27,24 @@ export AUTOMEM_CWD
 # Reset session stats on startup; preserve on resume/compact
 if [ "$SOURCE" = "startup" ]; then
   python3 "$SCRIPT_DIR/session_stats.py" init 2>/dev/null || true
-  rm -f /tmp/automem_recent_reads_${USER}_* 2>/dev/null || true
+  # Clear recent-read tracking files (scoped to this user via $HOME).
+  # Glob is safe here because $AUTOMEM_STATE_DIR is per-user (was /tmp/* in v0.1.4).
+  rm -f "$AUTOMEM_STATE_DIR"/recent_reads_*.list 2>/dev/null || true
 fi
 
 # Initialize settings file on first run
 PYTHONPATH="$SCRIPT_DIR" python3 "$SCRIPT_DIR/load_settings.py" init 2>/dev/null || true
 
-# Clear stale rubric dedup flags
-rm -f "/tmp/automem_rubric_injected_${USER}" 2>/dev/null || true
-rm -f /tmp/automem_rubric_* 2>/dev/null || true
+# Clear stale rubric dedup flags (scoped to this user)
+rm -f "$AUTOMEM_STATE_DIR"/rubric_*.flag 2>/dev/null || true
+rm -f "$AUTOMEM_STATE_DIR/rubric_injected.flag" 2>/dev/null || true
 
 # Resolve or generate session id
 AUTOMEM_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // ""' 2>/dev/null || echo "")
 if [ -z "$AUTOMEM_SESSION_ID" ]; then
   AUTOMEM_SESSION_ID="ses_$(date +%s)_$$"
 fi
-printf '%s' "$AUTOMEM_SESSION_ID" > "/tmp/automem_session_id_${USER}"
+printf '%s' "$AUTOMEM_SESSION_ID" > "$AUTOMEM_STATE_DIR/session_id"
 export AUTOMEM_SESSION_ID
 
 # Banner — injected into Claude's context
@@ -101,11 +103,44 @@ EOF
     ;;
 
   compact)
-    cat <<EOF
-Context compacted. Search AutoMem for \`session_state\` and \`compact_summary\` memories to recover lost context:
+    # Compute t_invalid (today + 90 days) for the compact-summary capture.
+    # bash POSIX has no portable date arithmetic; try GNU date first, then BSD
+    # (macOS), then python3, then leave empty and let Claude omit the field.
+    _T_INVALID=$(date -d "+90 days" +%Y-%m-%d 2>/dev/null \
+      || date -v +90d +%Y-%m-%d 2>/dev/null \
+      || python3 -c "from datetime import date, timedelta; print((date.today() + timedelta(days=90)).isoformat())" 2>/dev/null \
+      || echo "")
 
-1. \`recall_memory(query="session state current task", tags=["project:$AUTOMEM_PROJECT_ID", "kind:session-state"], limit=3)\`
-2. \`recall_memory(query="compact summary previous session", tags=["project:$AUTOMEM_PROJECT_ID", "kind:compact-summary"], limit=2, sort="time_desc")\`
+    cat <<EOF
+Context compacted. The compact summary now lives at the top of your working memory; most of the prior conversation has been replaced. Two actions before answering:
+
+### Step 1 — Recover prior context from AutoMem (2 parallel recalls)
+
+1. \`recall_memory(query="session state current task", tags=["project:$AUTOMEM_PROJECT_ID", "kind:session-state"], limit=3, sort="time_desc")\`
+2. \`recall_memory(query="recent decisions and learnings", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Decision", "Insight"], limit=5, sort="time_desc")\`
+
+### Step 2 — Persist THIS compaction's summary into AutoMem
+
+The compact summary itself is valuable for a future session resume — store it
+as an ephemeral Context memory with a 90-day soft expiry:
+
+\`\`\`
+store_memory(
+  content="<the compact summary that now sits at the top of your working memory, verbatim or condensed to ~300 words max>",
+  type="Context",
+  tags=["project:$AUTOMEM_PROJECT_ID", "kind:compact-summary", "session:$AUTOMEM_SESSION_ID", "ephemeral:true"],
+  importance=0.5,
+  confidence=0.9,${_T_INVALID:+
+  t_invalid=\"${_T_INVALID}\",}
+)
+\`\`\`
+
+The \`t_invalid\` flag sets a 90-day soft expiry. AutoMem will not surface this
+memory from \`recall_memory\` after that date. The \`ephemeral:true\` tag also
+enables fast bulk cleanup if you ever need it.
+
+After recovery + capture, resume the conversation naturally. Do not ask the
+user to recap.
 EOF
     ;;
 esac
