@@ -1,0 +1,26 @@
+{
+  "name": "automem",
+  "version": "0.1.0",
+  "description": "Persistent memory for Claude Code via AutoMem (self-hosted FalkorDB + Qdrant). Remembers decisions, patterns, and preferences across sessions — with native graph relationships.",
+  "author": {
+    "name": "Sébastien Bellon"
+  },
+  "homepage": "https://github.com/sebastienbellon/automem-plugin",
+  "license": "MIT",
+  "keywords": ["memory", "personalization", "mcp", "semantic-search", "automem", "graph", "falkordb", "qdrant"],
+  "userConfig": {
+    "rest_base_url": {
+      "type": "string",
+      "title": "AutoMem REST base URL (optional)",
+      "description": "Base URL of your self-hosted AutoMem instance, used by some hooks for direct REST pre-fetch (e.g. on file read, error capture). Example: https://automem.example.com. Leave empty to rely solely on MCP calls.",
+      "required": false
+    },
+    "rest_auth_header": {
+      "type": "string",
+      "title": "REST auth header value (optional)",
+      "description": "Full Authorization header value used with rest_base_url. Example: 'Bearer xxx' or 'Token xxx'. Leave empty if rest_base_url is empty.",
+      "sensitive": true,
+      "required": false
+    }
+  }
+}
