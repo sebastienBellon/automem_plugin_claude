@@ -13,6 +13,18 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on_user_prompt.sh",
+            "statusMessage": "Checking memory relevance...",
+            "timeout": 12
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
