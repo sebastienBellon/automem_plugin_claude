@@ -227,7 +227,7 @@ Trois clés nouvelles vs mem0 : `importance_threshold` (pruning), `weave_auto_as
 | **Phase 1 — MVP** | 2-3 h | `plugin.json`, `.mcp.json` (optionnel si déjà configuré), `_identity.sh` (avec décision scoping), `_project.py`, `_scope.py`, `on_session_start.sh`, `on_stop.sh`, skill `onboard` adapté → **auto-load au démarrage + auto-save fin de tour** |
 | **Phase 2 — Heuristiques** | 2-3 h | `on_user_prompt.sh` complet, `_recall.py` wrapper HTTP, rubriques dédupliquées, regex de détection (stack traces, file paths, intents) → **détection contextuelle + pré-fetch** |
 | **Phase 3 — Auto-capture** | 1-2 h | `auto_import.py`, `enforce_metadata_defaults.sh`, `block_memory_write.sh` |
-| **Phase 4 — Compaction** | 1-2 h | `on_pre_compact.sh`, `on_post_compact.sh`, `capture_compact_summary.py` |
+| **Phase 4 — Compaction** ✅ | 1-2 h | `on_pre_compact.sh` (rubrique extract durable facts), `on_post_compact.sh` (rubrique recovery + capture summary as Context kind:compact-summary avec t_invalid=+90j). Note : `capture_compact_summary.py` du plan initial est abandonné car AutoMem est MCP-only — le PostCompact hook délègue la capture à Claude via MCP. |
 | **Phase 5 — Skills core** | 3-4 h | `remember`, `recall`, `tour`, `stats`, `health` |
 | **Phase 6 — Skills graphe** | 4-5 h | `weave` (réinventé), `associate` (nouveau), `evolve` (nouveau), `pin`, `forget`, `memory-reviewer` |
 | **Phase 7 — Skills orchestration** | 3-4 h | `switch-project`, `list-projects`, `context-loader` (avec expand_relations), `export`, `import`, hooks de confort (`on_file_read`, `on_bash_output`, `on_post_commit`) |
