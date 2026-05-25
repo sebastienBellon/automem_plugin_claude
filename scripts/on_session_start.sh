@@ -45,41 +45,25 @@ fi
 printf '%s' "$AUTOMEM_SESSION_ID" > "/tmp/automem_session_id_${USER}"
 export AUTOMEM_SESSION_ID
 
-# Try to get a memory count if REST credentials are available; otherwise '?'
-MEMORY_COUNT="?"
-if [ -n "${AUTOMEM_REST_BASE_URL:-}" ] && [ -n "${AUTOMEM_REST_AUTH_HEADER:-}" ] && command -v python3 >/dev/null 2>&1; then
-  MEMORY_COUNT=$(python3 -c "
-import json, os, urllib.request, urllib.error
-base = os.environ.get('AUTOMEM_REST_BASE_URL', '').rstrip('/')
-auth = os.environ.get('AUTOMEM_REST_AUTH_HEADER', '')
-req = urllib.request.Request(
-    f'{base}/health',
-    headers={'Authorization': auth, 'Content-Type': 'application/json'},
-    method='GET',
-)
-try:
-    with urllib.request.urlopen(req, timeout=4) as r:
-        data = json.loads(r.read())
-        print(data.get('memory_count', '?'))
-except Exception:
-    print('?')
-" 2>/dev/null || echo "?")
-fi
-
 # Banner — injected into Claude's context
+# Note: memory count is intentionally NOT included in bash output because
+# AutoMem is MCP-only and bash hooks can't call MCP tools. Claude can
+# optionally call `check_database_health` itself when relevant (see rubric below).
+
 cat <<BANNER
 ## AutoMem Active
 
-\`user=$AUTOMEM_RESOLVED_USER_ID | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH | session=$AUTOMEM_SESSION_ID | memories=$MEMORY_COUNT\`
+\`user=$AUTOMEM_RESOLVED_USER_ID | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH | session=$AUTOMEM_SESSION_ID\`
 
 IMPORTANT: In your FIRST response to the user, display the identity banner exactly as shown below (copy-paste as your opening line before any other output):
 
 \`\`\`
-AutoMem Active | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH | memories=$MEMORY_COUNT
+AutoMem Active | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH
 \`\`\`
 
 **Scope policy (tags)** for every \`store_memory\` call:
-- Always include tag: \`project:$AUTOMEM_PROJECT_ID\`
+- Always include tag: \`project:$AUTOMEM_PROJECT_ID\` (the slug is a "context", not necessarily a code repo — can be a coaching engagement, a life theme, a journaling thread, anything)
+- Optionally add a \`domain:<X>\` tag when the context type matters for filtering — recommended values: \`code\`, \`personal\`, \`coaching\`, \`planning\`, \`learning\`. Use whatever fits the conversation; the list is a convention, not a hard enum.
 - For ephemeral memories (type \`Context\` with kind:session-state or kind:compact-summary), also add: \`session:$AUTOMEM_SESSION_ID\` and \`ephemeral:true\`
 - Do NOT add \`user:\` or \`branch:\` tags by default — put branch context in \`content\` if critical.
 
@@ -88,18 +72,20 @@ BANNER
 # Source-specific rubric
 case "$SOURCE" in
   startup)
-    if [ "$MEMORY_COUNT" = "0" ]; then
-      cat <<'EOF'
-This is a new project with 0 memories in AutoMem. Invoke the `automem:onboard` skill now using the Skill tool to detect and import project files (CLAUDE.md, AGENTS.md, .cursorrules, automem.md) and verify connectivity. Do not ask the user — just invoke it immediately before responding.
-EOF
-    else
-      cat <<EOF
-Search AutoMem for recent decisions and patterns before responding to the user's first message. Run 2 parallel \`recall_memory\` calls:
+    cat <<EOF
+**Bootstrap check** — first turn of a new session. Before answering the user's first message:
 
-1. \`recall_memory(query="recent decisions", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Decision"], limit=5, sort="time_desc")\`
-2. \`recall_memory(query="patterns conventions style", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Pattern", "Style"], limit=5, sort="score")\`
+1. Run \`check_database_health\` (1 fast call) to confirm connectivity AND get the current \`memory_count\` for project=$AUTOMEM_PROJECT_ID:
+   \`check_database_health()\` then look at the response.
+
+2. **If memory_count is 0** for this project (no memories yet), invoke the \`automem:onboard\` skill immediately — it imports CLAUDE.md / AGENTS.md / .cursorrules / automem.md and bootstraps context. Do not ask the user.
+
+3. **Otherwise**, run 2 parallel \`recall_memory\` calls before responding:
+   - \`recall_memory(query="recent decisions", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Decision"], limit=5, sort="time_desc")\`
+   - \`recall_memory(query="patterns conventions style", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Pattern", "Style"], limit=5, sort="score")\`
+
+   You may include the memory count in your identity banner if you wish: \`AutoMem Active | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH | memories=<count>\`.
 EOF
-    fi
     ;;
 
   resume)

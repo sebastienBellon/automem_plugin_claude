@@ -1,16 +1,33 @@
 """Resolve AutoMem project_id (slug) and current git branch.
 
-Resolution priority (project_id):
+Semantically, the ``project_id`` is a "context slug" — it can identify a
+code repository OR a non-code theme (a coaching engagement, a life project,
+a journaling thread, a brainstorming track…). The implementation supports
+both transparently.
+
+Resolution priority (project_id) — order matters, first non-empty wins:
   1. AUTOMEM_PROJECT_ID env var (explicit override)
   2. ~/.automem-plugin/project_map.json lookup by cwd
-  2b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing
-      fallback for folder moves/renames)
-  3. Git remote slug: strip protocol/prefix, strip .git, owner-repo format
-     e.g. git@github.com:sebastienbellon/automem-plugin.git -> sebastienbellon-automem-plugin
-  4. Fallback: basename of cwd
+  2b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing)
+  3. Walk-up from cwd looking for a project marker:
+     .automem-project (explicit), .git (git slug), automem.md, CLAUDE.md, AGENTS.md
+  4. Default context (FINAL fallback in v0.1.2 onwards):
+     Read ~/.automem-plugin/default-context.txt content (or the legacy
+     ~/.automem-plugin/cowork-default-project.txt for v0.1.1 back-compat).
+     If neither exists or both are empty, return the literal slug "default".
 
-Mirrors mem0's resolution flow but pointed at ~/.automem-plugin/ instead of
-~/.mem0/.
+Changes in v0.1.2 vs v0.1.1:
+- ``cowork-default`` slug renamed to ``default`` (more neutral — the bucket
+  is used by Cowork sessions without a detected project AND by Claude Code
+  / other CLI sessions started outside any project marker; the old name was
+  too code/Cowork-centric for non-code contexts like coaching or journaling).
+- Removed the old final fallback ``basename(cwd)``: that fallback created
+  accidental isolated buckets (e.g. 'notes' from ~/Documents/notes/,
+  'untitled' from /tmp/untitled/) which fragmented the OS memory layer.
+  Everything that doesn't match a project marker now consolidates into
+  ``default`` (overridable via env var, project_map, or marker file).
+
+Rationale documented in PORTAGE-PLAN.md §3 (revised 26 May 2026).
 """
 
 from __future__ import annotations
@@ -22,6 +39,24 @@ import re
 import subprocess
 
 MAP_PATH = os.path.expanduser("~/.automem-plugin/project_map.json")
+# Default context file (was cowork-default-project.txt in v0.1.1 — kept as
+# fallback for backward compatibility)
+DEFAULT_CONTEXT_FILE = os.path.expanduser("~/.automem-plugin/default-context.txt")
+LEGACY_COWORK_DEFAULT_FILE = os.path.expanduser("~/.automem-plugin/cowork-default-project.txt")
+# Default scope used when no project marker is found (was "cowork-default" in
+# v0.1.1 — renamed to "default" in v0.1.2 because the bucket is also used by
+# non-Cowork sessions without a detected project, and "cowork-default" was
+# too code-centric for life/coaching/personal contexts).
+DEFAULT_SLUG = "default"
+
+# Markers checked during walk-up, in order of priority
+PROJECT_MARKERS = [
+    ".automem-project",  # explicit (text file = project slug)
+    ".git",              # git repo (use remote slug or basename of git root)
+    "automem.md",        # AutoMem config file
+    "CLAUDE.md",         # Claude Code memory file
+    "AGENTS.md",         # OpenAI codex / generic agent memory file
+]
 
 
 def resolve_project_id(cwd: str | None = None) -> str:
@@ -33,45 +68,166 @@ def resolve_project_id(cwd: str | None = None) -> str:
     if explicit:
         return explicit
 
-    # 2. project_map.json lookup
-    if os.path.isfile(MAP_PATH):
-        try:
-            with open(MAP_PATH) as f:
-                project_map = json.load(f)
-            mapped = project_map.get(cwd, "").strip()
-            if mapped:
-                return mapped
-            # 2b. Remote hash fallback (self-healing)
-            remote_key = _remote_hash_key(cwd)
-            if remote_key:
-                mapped = project_map.get(remote_key, "").strip()
-                if mapped:
-                    project_map[cwd] = mapped
-                    try:
-                        with open(MAP_PATH, "w") as f:
-                            json.dump(project_map, f, indent=2)
-                    except OSError:
-                        pass
-                    return mapped
-        except (OSError, json.JSONDecodeError, AttributeError):
-            pass
+    # 2. project_map.json lookup (cwd + remote hash self-healing)
+    mapped = _lookup_project_map(cwd)
+    if mapped:
+        return mapped
 
-    # 3. Git remote slug
+    # 3. Walk-up for project markers
+    walked = _walk_up_for_project(cwd, max_levels=6)
+    if walked:
+        return walked
+
+    # 4. Cowork scratchpad detection (or any context without a project marker)
+    # — read the configured default context (file), else fall through to the
+    # generic DEFAULT_SLUG. Note: in v0.1.1 this step only fired for Cowork
+    # paths; in v0.1.2 we make 'default' the final fallback for ANY path
+    # without a project marker (eliminates the basename(cwd) fallback which
+    # produced isolated buckets like 'notes' from ~/Documents/notes/).
+    default_name = _read_default_context()
+    if _is_cowork_scratchpad(cwd):
+        return default_name
+
+    # 5. Final fallback: default scope (was basename(cwd) in v0.1.1)
+    # Rationale: returning basename(cwd) when nothing matches creates
+    # accidental isolated buckets (e.g. 'notes', 'tmp', 'untitled') that
+    # fragment the OS memory layer. The 'default' scope keeps everything
+    # discoverable while still being overridable via AUTOMEM_PROJECT_ID,
+    # ~/.automem-plugin/project_map.json, or a .automem-project marker file.
+    return default_name
+
+
+def _read_default_context() -> str:
+    """Read the user-configured default context slug.
+
+    Checks ``~/.automem-plugin/default-context.txt`` first; falls back to the
+    legacy ``~/.automem-plugin/cowork-default-project.txt`` for v0.1.1 →
+    v0.1.2 backward compatibility. Returns the trimmed content if non-empty,
+    else the literal ``DEFAULT_SLUG`` ("default").
+    """
+    for path in (DEFAULT_CONTEXT_FILE, LEGACY_COWORK_DEFAULT_FILE):
+        if os.path.isfile(path):
+            try:
+                with open(path) as f:
+                    name = f.read().strip()
+                if name:
+                    return name
+            except OSError:
+                pass
+    return DEFAULT_SLUG
+
+
+def _lookup_project_map(cwd: str) -> str:
+    """Check project_map.json for an explicit cwd → project mapping,
+    with self-healing remote-hash fallback. Returns empty string on miss.
+    """
+    if not os.path.isfile(MAP_PATH):
+        return ""
     try:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True, text=True, check=True, cwd=cwd,
-        )
-        remote_url = result.stdout.strip()
-        if remote_url:
-            slug = _remote_url_to_slug(remote_url)
-            if slug:
-                return slug
-    except (subprocess.CalledProcessError, OSError):
+        with open(MAP_PATH) as f:
+            project_map = json.load(f)
+        mapped = project_map.get(cwd, "").strip()
+        if mapped:
+            return mapped
+        remote_key = _remote_hash_key(cwd)
+        if remote_key:
+            mapped = project_map.get(remote_key, "").strip()
+            if mapped:
+                # Self-heal: write the cwd → project mapping for next time
+                project_map[cwd] = mapped
+                try:
+                    with open(MAP_PATH, "w") as f:
+                        json.dump(project_map, f, indent=2)
+                except OSError:
+                    pass
+                return mapped
+    except (OSError, json.JSONDecodeError, AttributeError):
         pass
+    return ""
 
-    # 4. Fallback: basename of cwd
-    return os.path.basename(cwd) or "unknown"
+
+def _walk_up_for_project(cwd: str, max_levels: int = 6) -> str:
+    """Walk up from cwd looking for a project marker.
+
+    Returns the resolved project slug (string) when a marker is found,
+    or empty string if nothing found within max_levels.
+
+    Marker resolution (in priority order, per directory visited):
+      1. .automem-project file → its content (trimmed) is the project slug
+      2. .git directory → git remote slug (owner-repo), or basename of git root
+      3. automem.md → basename of containing dir
+      4. CLAUDE.md or AGENTS.md → basename of containing dir
+    """
+    current = os.path.abspath(cwd)
+
+    for _ in range(max_levels):
+        # 1. Explicit .automem-project marker
+        explicit_marker = os.path.join(current, ".automem-project")
+        if os.path.isfile(explicit_marker):
+            try:
+                with open(explicit_marker) as f:
+                    name = f.read().strip()
+                if name:
+                    return name
+            except OSError:
+                pass
+
+        # 2. .git directory → remote slug or git-root basename
+        if os.path.isdir(os.path.join(current, ".git")):
+            try:
+                result = subprocess.run(
+                    ["git", "remote", "get-url", "origin"],
+                    capture_output=True, text=True, check=True, cwd=current,
+                )
+                remote_url = result.stdout.strip()
+                if remote_url:
+                    slug = _remote_url_to_slug(remote_url)
+                    if slug:
+                        return slug
+            except (subprocess.CalledProcessError, OSError):
+                pass
+            # Git repo with no remote → use git root basename
+            return os.path.basename(current) or "unknown"
+
+        # 3. automem.md
+        if os.path.isfile(os.path.join(current, "automem.md")):
+            return os.path.basename(current) or "unknown"
+
+        # 4. CLAUDE.md or AGENTS.md
+        if (
+            os.path.isfile(os.path.join(current, "CLAUDE.md"))
+            or os.path.isfile(os.path.join(current, "AGENTS.md"))
+        ):
+            return os.path.basename(current) or "unknown"
+
+        # Move up one level
+        parent = os.path.dirname(current)
+        if parent == current:  # reached filesystem root
+            break
+        current = parent
+
+    return ""
+
+
+def _is_cowork_scratchpad(cwd: str) -> bool:
+    """Detect if cwd is inside a Cowork session scratchpad.
+
+    Heuristics:
+      - Path contains 'local-agent-mode-sessions' (Cowork's session dir pattern)
+      - Path ends in '/outputs' and is under a 'Claude' directory
+      - Path contains '/Claude/' AND ends in '/outputs' or '/uploads'
+
+    Returns True when the cwd looks like Cowork-managed scratch space rather
+    than a real project directory.
+    """
+    if not cwd:
+        return False
+    norm = cwd.rstrip("/")
+    if "local-agent-mode-sessions" in norm:
+        return True
+    if "/Claude/" in norm and (norm.endswith("/outputs") or norm.endswith("/uploads")):
+        return True
+    return False
 
 
 def resolve_branch(cwd: str | None = None) -> str:

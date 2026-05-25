@@ -77,13 +77,14 @@ Le type `Habit` n'a pas d'équivalent direct mem0 — bonus AutoMem à exploiter
 
 ---
 
-## 3. Scoping — DÉCISION FIGÉE le 26 mai 2026 : politique minimale
+## 3. Scoping — DÉCISION FIGÉE le 26 mai 2026, élargie en v0.1.2
 
-AutoMem n'a pas de scoping natif `user_id` / `app_id` / `run_id`. Plutôt que de tout tagger systématiquement (qui dupliquerait l'information sémantique déjà présente dans le `content`), on adopte une politique de **scoping minimal** :
+AutoMem n'a pas de scoping natif `user_id` / `app_id` / `run_id`. Plutôt que de tout tagger systématiquement (qui dupliquerait l'information sémantique déjà présente dans le `content`), on adopte une politique de **scoping minimal augmentée d'une convention `domain:` optionnelle** :
 
 | Tag | Quand l'ajouter | Justification |
 |---|---|---|
-| `project:<slug>` | **Sur toutes les mémoires** | Permet la maintenance ("compte les décisions WhisperIt", "purge le projet X"), évite la pollution sémantique cross-projet, et boost les recall scopés |
+| `project:<slug>` | **Sur toutes les mémoires** | Permet la maintenance ("compte les décisions WhisperIt", "purge le projet X"), évite la pollution sémantique cross-projet, et boost les recall scopés. **Sémantiquement c'est un "context slug" — pas forcément un repo de code, peut être un thème de vie, une thématique de coaching, un journal, etc.** |
+| `domain:<X>` | **Quand le type de contexte importe pour le filtrage** (optionnel) | Convention non-imposée : valeurs recommandées `code`, `personal`, `coaching`, `planning`, `learning`. Liste extensible (`writing`, `research`, `health`, …). Permet de filtrer "toutes mes décisions de coaching" sans avoir à parcourir les projets un par un. **Pas de détection automatique** — c'est à l'agent de proposer le tag pertinent lors du `store_memory`. |
 | `session:<ses_id>` | **Uniquement sur les mémoires éphémères** (`Context` avec `kind:session-state` ou `kind:compact-summary`) | Permet de purger une session entière en bloc sans toucher aux mémoires durables |
 | `ephemeral:true` | En complément de `session:` | Filtre rapide pour les opérations de cleanup |
 
@@ -93,13 +94,26 @@ AutoMem n'a pas de scoping natif `user_id` / `app_id` / `run_id`. Plutôt que de
 
 **Le contexte narratif riche reste dans le `content`** — chaque mémoire commence idéalement par un préambule qui situe (« Sur WhisperIt en mai 2026, j'ai décidé X parce que Y »). Les tags ne remplacent pas le contexte, ils l'augmentent pour le filtrage rapide.
 
-### Résolution du `project:<slug>`
+### Pourquoi `domain:` plutôt que des `project:` distincts pour chaque domaine ?
 
-Pattern identique à mem0 :
-1. Override : env var `AUTOMEM_PROJECT_ID` (set manuellement)
-2. Lookup : `~/.automem-plugin/project_map.json` (`cwd → project_id`, avec self-healing par hash du remote URL)
-3. Auto-détection : `git remote get-url origin` → slug `owner-repo`
-4. Fallback : `basename(cwd)`
+Parce que le projet est l'unité de **continuité** (« je travaille là-dessus depuis 3 mois »), alors que le domain est l'unité de **catégorie** (« ce sont des questions de carrière »). Un projet peut traverser plusieurs domains (ex. `project:reconversion-2026` mélange `domain:coaching`, `domain:planning`, `domain:learning`). Un domain peut couvrir plusieurs projets (ex. `domain:code` regroupe `project:WhisperIt` + `project:automem-plugin` + …). Les deux dimensions sont orthogonales.
+
+### Résolution du `project:<slug>` (mise à jour 26 mai 2026, post-test réel)
+
+Bug critique observé en conditions réelles : depuis Cowork, le cwd est un scratchpad `local-agent-mode-sessions/.../outputs` → l'ancien fallback `basename(cwd)` retournait `outputs` pour TOUTES les sessions Cowork, fragmentant les mémoires en deux buckets disjoints (Cowork=`outputs` vs CLI=`<slug>`). Fix livré :
+
+| Étape | Mécanisme | Résultat |
+|---|---|---|
+| 1 | Override env var `AUTOMEM_PROJECT_ID` | Priorité absolue |
+| 2 | Lookup `~/.automem-plugin/project_map.json` (cwd + self-healing par hash de remote URL) | Mapping explicite |
+| 3 | **Walk-up** depuis cwd (max 6 niveaux) cherchant un marker | `.automem-project` (texte explicite) > `.git` (remote slug ou basename git root) > `automem.md` > `CLAUDE.md` > `AGENTS.md` |
+| 4 | **Détection Cowork scratchpad** (path contient `local-agent-mode-sessions` ou se termine par `/Claude/.../outputs`) | Lecture de `~/.automem-plugin/cowork-default-project.txt` ou fallback sur le slug `cowork-default` |
+| 5 | Fallback final | `basename(cwd)` |
+
+Validé sur 7 scénarios de test en sandbox (cf. session du 26 mai 2026). Le Cowork bucket `cowork-default` est un compromis : il évite la fragmentation tout en restant identifiable. Pour avoir un vrai scope projet depuis Cowork, l'utilisateur a 3 options :
+1. Exporter `AUTOMEM_PROJECT_ID=<slug>` dans son shell avant de lancer Cowork
+2. Écrire le slug dans `~/.automem-plugin/cowork-default-project.txt`
+3. Attendre Phase 7 → skill `/automem:switch-project <slug>` (override per-cwd dans project_map.json)
 
 ---
 
