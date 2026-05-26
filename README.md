@@ -16,8 +16,7 @@ En cours de construction. Voir [`PORTAGE-PLAN.md`](./PORTAGE-PLAN.md) pour la ci
 | Surface MCP | `store_memory` / `recall_memory` / `associate_memories` / `update_memory` / `delete_memory` / `check_database_health` |
 | Hooks Claude Code (shipped) | `SessionStart`, `UserPromptSubmit`, `PreCompact`, `Stop` |
 | Hooks Claude Code (planned) | `PreToolUse`, `PostToolUse`, `SubagentStop`, `Notification`, `SessionEnd` |
-| Skills (shipped) | `/automem:onboard`, `/automem:remember`, `/automem:recall`, `/automem:switch-project`, `/automem:health`, `/automem:associate`, `/automem:evolve`, `/automem:pin`, `/automem:forget` |
-| Skills (planned, Tier 2) | `/automem:list-projects`, `/automem:weave` |
+| Skills (shipped) | `/automem:onboard`, `/automem:remember`, `/automem:recall`, `/automem:switch-project`, `/automem:health`, `/automem:associate`, `/automem:evolve`, `/automem:pin`, `/automem:forget`, `/automem:list-projects`, `/automem:weave` |
 | Skills (planned, Tier 3, optionnel) | `/automem:tour`, `/automem:stats`, `/automem:memory-reviewer`, `/automem:context-loader` |
 
 ## Structure du repo

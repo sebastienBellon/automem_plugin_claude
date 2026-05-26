@@ -247,10 +247,10 @@ Ces 4 skills débloquent vraiment AutoMem en tant que graphe vivant, sans lesque
 
 Total Tier 1 : **~1h de code**.
 
-### Tier 2 — Valeur élevée, à faire quand l'usage le demande
+### Tier 2 — Valeur élevée (✅ livré v0.2.0)
 
-- `/automem:list-projects` — vue d'ensemble des contextes actifs (`recall_memory(tag_match=prefix, tags=["project:"])` + dédup + compte). Utile dès que tu as 3-4 projets en parallèle. ~30 min.
-- `/automem:weave` — consolidation par tissage (créer arêtes `CONTRADICTS` au lieu de pruner, set `t_invalid` sur stale, baisser `importance` sur low-confidence). Conceptuellement la killer feature, mais réclame **50+ mémoires** par projet pour être pertinent (aujourd'hui ~15). À faire quand le volume est là. ~1-1.5 h.
+- `/automem:list-projects` ✅ — vue d'ensemble des contextes actifs (recall global + extraction client-side des tags `project:*`, dédup, count par projet). Flags `--with-types`, `--all-time`, `--since`. v0.2.0.
+- `/automem:weave` ✅ — consolidation par tissage : crée arêtes `REINFORCES`/`CONTRADICTS`/`EVOLVED_INTO` au lieu de pruner, soft-expire les stale (`t_invalid`), downweight les low-confidence (`importance=0`). Mode dry-run par défaut + `--apply` + `--auto`. Skip pinned. Réclame ~50+ mémoires par projet pour être vraiment utile (aujourd'hui 15-20). v0.2.0.
 
 ### Tier 3 — Confort, valeur modérée, optionnel
 
