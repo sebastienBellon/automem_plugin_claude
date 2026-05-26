@@ -91,7 +91,8 @@ arrow with \`associate_memories\`:
 ### What NOT to store here
 
 - Session summaries or "what we did today" blobs (the compact-summary
-  itself will be captured automatically by the PostCompact hook)
+  itself will be captured by the SessionStart:compact rubric at the
+  start of the next session)
 - Raw file lists or command histories
 - Anything you've already stored earlier in this session
 - One-time information that won't recur

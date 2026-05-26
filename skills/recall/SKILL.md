@@ -82,7 +82,7 @@ If a result has notable relations from `expand_relations`, append a 2nd indented
 No memories matching "<query>" for project <AUTOMEM_PROJECT_ID>.
 
 Try a broader query, `--global` to search across all projects, or `/automem:tour`
-(planned, Phase 5) to browse all memories by type.
+to browse all memories by type.
 ```
 
 ## Flags

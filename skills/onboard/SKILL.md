@@ -38,7 +38,7 @@ Read the identity from the SessionStart banner (already injected at session star
   session: <AUTOMEM_SESSION_ID>
 ```
 
-If `AUTOMEM_PROJECT_ID` looks wrong (e.g. resolved to `outputs` or a random folder name instead of your project), tell the user they can override it via the `/automem:switch-project <name>` skill (available from Phase 7) or by exporting `AUTOMEM_PROJECT_ID` in their shell profile.
+If `AUTOMEM_PROJECT_ID` looks wrong (e.g. resolved to `outputs` or a random folder name instead of your project), tell the user they can override it via the `/automem:switch-project <name>` skill or by exporting `AUTOMEM_PROJECT_ID` in their shell profile.
 
 ## Step 3: Detect declarative project files
 
@@ -101,10 +101,10 @@ to store durable facts at the end of each turn.
 Useful next commands:
   /automem:remember "<fact>"  — store a fact verbatim (shipped)
   /automem:recall <query>     — semantic search (shipped)
-  /automem:tour               — browse all memories by type (planned, Phase 5)
-  /automem:health             — full diagnostics (planned, Phase 5)
+  /automem:tour               — browse all memories by type
+  /automem:health             — full diagnostics
 ```
 
 ## Idempotence
 
-This skill is safe to re-run anytime. The store_memory calls in Step 3 will create duplicate memories if files haven't changed — to avoid this in Phase 3, an `auto_import.py` script will track file SHA-256 hashes in `~/.automem-plugin/file_hashes.json` and skip unchanged files automatically. For now, only re-import when files have substantively changed.
+This skill is safe to re-run anytime. The store_memory calls in Step 3 will create duplicate memories if files haven't changed — for now, only re-import when files have substantively changed.
