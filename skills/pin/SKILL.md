@@ -1,6 +1,6 @@
 ---
 name: pin
-description: Protect a critical memory from future pruning by setting importance=1.0 and adding a "pinned" tag. Use proactively (agent-driven) when a memory you just stored is structural — an architectural decision, a security constraint, a foundational user preference, a hard-won team convention — i.e. something that should never be touched by /automem:weave. Also when the user says "pin this", "protect this", "don't ever delete", "épingle ça", "garde ça précieusement". Use sparingly: aim for 5-10% of memories per project max.
+description: Protect a critical memory from future pruning by setting importance=1.0 and adding a "pinned" tag. Use proactively (agent-driven) when a memory you just stored is structural — an architectural decision, a security constraint, a foundational user preference, a hard-won team convention — i.e. something that should never be touched by /automem:weave. Also when the user says "pin this", "protect this", "don't ever delete", "épingle ça", "garde ça précieusement". Use sparingly — aim for 5-10% of memories per project max.
 ---
 
 # AutoMem Pin
