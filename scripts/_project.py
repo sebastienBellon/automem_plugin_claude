@@ -221,8 +221,13 @@ def _walk_up_for_project(cwd: str, max_levels: int = 6) -> str:
             except OSError:
                 pass
 
-        # 2. .git directory → remote slug or git-root basename
-        if os.path.isdir(os.path.join(current, ".git")):
+        # 2. .git directory OR file → remote slug or git-root basename.
+        # In a git worktree, `.git` is a *file* (containing `gitdir: …`),
+        # not a directory. Using `os.path.exists` catches both cases so
+        # parallel sessions launched in worktrees (Conductor, `claude -w`,
+        # subagent worktrees) resolve to the same project slug as the main
+        # checkout instead of falling through to "default".
+        if os.path.exists(os.path.join(current, ".git")):
             try:
                 result = subprocess.run(
                     ["git", "remote", "get-url", "origin"],
