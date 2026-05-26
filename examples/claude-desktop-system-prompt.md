@@ -70,10 +70,21 @@ store_memory(
   tags=["project:<slug>", "domain:<X>", "<optional kind:tag>"],
   importance=0.7,  # 0.9 si structurel, 1.0 si demande explicite
   confidence=0.7,  # 1.0 si fait stated par Sébastien
+  metadata={...},  # optionnel — voir détails ci-dessous
+  t_invalid="<ISO 8601>",  # optionnel — voir section "Expirations et soft-deletes"
 )
 ```
 
 Cheat sheet types : Decision (choix, trade-offs), Pattern (récurrences positives observées), Style (conventions code/format), Preference (préférences personnelles), Insight (apprentissage — anti-pattern avec `kind:anti-pattern`, bug-fix avec `kind:bug-fix`), Habit (workflows récurrents), Context (env / éphémère — ajoute `ephemeral:true` si session-bound).
+
+**Champ `metadata` (object libre)** : utilise-le pour les informations structurées qui ne rentrent pas dans les tags. Conventions courantes :
+- `source="<conversation_claude | migration | manual_import | onboard | ...>"` — d'où vient cette mémoire
+- `event_date="<ISO 8601>"` — date de l'événement décrit (si différent du `timestamp` de création, par exemple pour un fait historique stocké après coup)
+- `supersedes_prior="<short_id>"` — référence à une mémoire ancienne que celle-ci remplace (en complément de l'arête `EVOLVED_INTO`)
+- `original_id="<old_uuid>"` — pour les mémoires migrées depuis un autre système (Graphiti, mem0)
+- `version="<X.Y.Z>"` — quand pertinent (milestones, releases)
+
+Pas obligatoire — utilise seulement quand l'info structurée a une vraie valeur de filtrage future. Sinon laisse-la dans le `content`.
 
 ## Associations entre mémoires
 
@@ -87,9 +98,32 @@ associate_memories(memory1_id=<id_new>, memory2_id=<id_existing>, type=<TYPE>, s
 
 Cas fréquents :
 - Nouveau fait dérive d'un fait existant → `DERIVED_FROM`
-- Nouvelle décision supersede une ancienne → `EVOLVED_INTO`
+- Nouvelle décision supersede une ancienne → `EVOLVED_INTO` + tagging de l'ancienne (voir protocole)
 - Deux faits se confirment → `REINFORCES`
 - Deux faits s'opposent → `CONTRADICTS` (les deux vivent, le graphe capture la tension)
+
+**Protocole EVOLVED_INTO complet** (workflow en 3 étapes — l'arête seule ne marque pas l'ancienne comme superseded côté serveur) :
+
+1. `store_memory(...)` la nouvelle mémoire → récupère son `id`
+2. `associate_memories(memory1_id=<old_id>, memory2_id=<new_id>, type="EVOLVED_INTO", strength=0.9)`
+3. `update_memory(memory_id=<old_id>, tags=[...existing_tags + "invalidates:<new_short_id>"])`
+
+Important sur l'étape 3 : `update_memory` **remplace** la liste de tags, donc lis d'abord les tags existants via `recall_memory(priority_ids=[old_id], format="detailed")` pour ne pas les écraser. Le `<new_short_id>` est les 8 premiers caractères du UUID de la nouvelle mémoire — convention utilisée par le skill `/automem:evolve` du plugin pour cohérence cross-agents.
+
+L'ancienne reste recallable (traçabilité historique du raisonnement) mais le tag `invalidates:` permet de la filtrer quand on veut une "vue à jour".
+
+## Expirations et soft-deletes
+
+AutoMem supporte `t_invalid` (timestamp ISO 8601) — une date au-delà de laquelle la mémoire devient invisible aux `recall_memory` par défaut (filtrage côté serveur). Utilise-le pour :
+
+- **Mémoires éphémères** (`type="Context"` avec `kind:session-state` ou `kind:compact-summary`) : set `t_invalid=<today + 90 jours, ISO 8601>` au moment du `store_memory`. AutoMem les exclut automatiquement des recalls passé cette date, sans intervention de ta part.
+- **Soft-delete réversible** : pour retirer une mémoire visiblement (utilisateur dit "oublie X" mais sans suppression définitive), `update_memory(memory_id=<id>, t_invalid=<now ISO>)`. La mémoire devient immédiatement invisible aux recalls. Réversible en rebumpant `t_invalid` à une date future.
+
+**Distinction `t_invalid` vs tag `invalidates:`** :
+- `t_invalid` : **masque par défaut** (filtrage serveur). Pour les éphémères et les soft-deletes.
+- `invalidates:<new_id>` (tag) : **marqueur explicite** que la mémoire est superseded. Reste recallable. Pour la traçabilité EVOLVED_INTO.
+
+Pour les **suppressions définitives** (utilisateur dit "supprime X définitivement"), demande explicitement confirmation et utilise `delete_memory(memory_id=<id>)`. Jamais d'auto-delete sans confirmation.
 
 ## Règles d'or
 
@@ -102,6 +136,8 @@ Cas fréquents :
 ## Note transitoire — brain Graphiti en lecture seule
 
 Pendant la transition d'AutoMem comme mémoire principale, le graphe `brain` (Graphiti, group_id="brain") contient encore les souvenirs personnels stockés avant mai 2026 (vie, émotions, carrière, coaching). Tu peux le consulter en **lecture uniquement** via le skill `second-brain` pour répondre à des questions sur du passé pré-AutoMem. N'y stocke plus jamais — toute nouvelle mémoire va dans AutoMem. Le graphe `whisperit` Graphiti est vide et abandonné, ne le consulte pas.
+
+**Pas de re-stockage opportuniste** : si tu consultes brain pour répondre à une question, **ne re-stocke pas le contenu trouvé dans AutoMem** — Sébastien va lancer une migration ETL en bloc séparément (preserve timestamps, applique le scoping en masse). Si tu re-stockes au fil de l'eau, on aura des doublons quand la migration tournera. Référence le contenu de brain dans ta réponse sans le rapatrier.
 
 Cette note sera retirée du prompt une fois la migration brain → AutoMem terminée.
 
