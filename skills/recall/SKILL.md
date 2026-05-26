@@ -88,13 +88,18 @@ Try a broader query, `--global` to search across all projects, or `/automem:tour
 ## Flags
 
 - `--expand` → `expand_relations=true` in call #1, follow graph edges (slower but richer)
-- `--entities` → `expand_entities=true`, multi-hop on auto-extracted entities (very experimental, noisy)
 - `--time-window=<period>` → add `time_query=<period>` (e.g. "last week", "today", "this month")
 - `--type=<Type>` → restrict to a single AutoMem type (overrides Step 2 call #2)
 - `--domain=<X>` → restrict to a single domain by adding `"domain:<X>"` to the `tags` list (e.g. `--domain=coaching` to search only coaching memories within the active project)
 - `--limit=<N>` → override default 10 (max 50 per AutoMem limit)
 - `--global` → drop the `project:<X>` tag filter and search across all projects (use sparingly — pollutes results)
 - `--format=detailed` → switch to `format="detailed"` per-call to see timestamps, importance, full tags
+
+## ⚠ Note: `expand_entities=true` deliberately not exposed
+
+AutoMem's server-side NER currently mis-classifies French text and technical jargon, producing ~30-50% spurious `entity:*` tags per memory (e.g. "s-bastien" → `entity:concepts:s-bastien`, "PostCompact" → `entity:organizations:postcompact`, common words like "context" or "fallback" classified as organizations). Activating `expand_entities=true` would surface unrelated memories via these bogus entity nodes — broken scope, noisy results.
+
+This skill therefore does **not** expose an `--entities` flag. If you want to test it ad-hoc, call `recall_memory` directly with `expand_entities=true`. Re-add the flag here once AutoMem's NER is fixed upstream (or you disable it server-side).
 
 ## Cross-domain search
 

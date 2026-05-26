@@ -12,7 +12,7 @@ Trois découvertes majeures de la session du 25 mai 2026 :
 
 1. **AutoMem n'est pas un clone mem0.** Stack FalkorDB + Qdrant, surface MCP `store_memory` / `recall_memory` / `associate_memories` / `check_database_health`. Pas de `user_id`/`agent_id`/`app_id`/`run_id` natifs.
 2. **Les trois "gaps" identifiés en V1 sont invalidés.** `update_memory` accepte content + tags + metadata + importance, `t_valid`/`t_invalid` sont natifs, et `recall_memory` a `sort`/`context_*`/`priority_ids`.
-3. **AutoMem a des features uniques** absentes de mem0 et qui méritent d'être au cœur du plugin : `associate_memories` avec 11 types d'arêtes typées, `expand_relations` / `expand_entities` dans `recall_memory`, boost contextuel natif via `active_path` / `language` / `context_tags`.
+3. **AutoMem a des features uniques** absentes de mem0 et qui méritent d'être au cœur du plugin : `associate_memories` avec 11 types d'arêtes typées, `expand_relations` dans `recall_memory`, boost contextuel natif via `active_path` / `language` / `context_tags`. (Note v0.1.8 : `expand_entities` est aussi exposé par AutoMem mais le NER serveur classe mal le français et le jargon technique — bruit ~30-50% de tags `entity:*` bidons par mémoire. À ne pas utiliser tant que le NER upstream n'est pas amélioré, ou désactivé côté serveur. Cf. §X.)
 
 Conséquence : le plan d'implémentation est **plus simple côté gaps** (rien à émuler pour pin/expiration/threshold) et **plus ambitieux côté features** (le plugin doit exploiter le graphe natif, pas l'ignorer).
 
@@ -239,6 +239,16 @@ Trois clés nouvelles vs mem0 : `importance_threshold` (pruning), `weave_auto_as
 **Total estimé** : 17-23 h. **MVP utilisable** dès Phase 1+2 (~5 h).
 
 ---
+
+## 8.5. Bruit NER serveur (open issue upstream)
+
+AutoMem applique un NER côté serveur sur le `content` de chaque mémoire et ajoute des tags `entity:<bucket>:<value>` automatiques. Observé en usage réel sur 15 mémoires : ~30-50% des tags ajoutés sont des faux positifs, en particulier sur du texte français (perte des diacritiques) et du jargon technique (acronymes, noms composés). Échantillon : `entity:concepts:s-bastien` (Sébastien), `entity:organizations:postcompact` (label technique), `entity:organizations:context` / `fallback` / `pas-de` / `uniquement` (mots communs mal classés), `entity:people:claude-code` (tool mal classé en personne).
+
+**Impact réel** : faible tant qu'on ne fait pas `expand_entities=true` dans les recall. Le scoring de `recall_memory` dépend principalement de l'embedding (sur le `content`) et des tags qu'on contrôle (`project:`, `domain:`, `kind:`). Les `entity:*` sont passifs. **Critique** uniquement si activé via `expand_entities`.
+
+**Décision v0.1.8** : ne pas exposer `--entities` dans `/automem:recall` tant que le NER serveur n'est pas amélioré ou désactivé. Si l'utilisateur a accès à la config AutoMem (variable d'env, fichier YAML, etc.), désactiver le NER élimine la pollution à la source. Cleanup rétroactif des `entity:*` tags faisable via boucle `recall_memory` → `update_memory` (script futur si besoin).
+
+À tester côté serveur : presence de flags type `AUTOMEM_DISABLE_NER`, `ENABLE_ENTITY_EXTRACTION=false`, ou réglage dans le YAML d'AutoMem.
 
 ## 9. Décisions ouvertes à trancher
 
