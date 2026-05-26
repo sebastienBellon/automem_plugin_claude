@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: Mark that a new decision supersedes an older one, creating the EVOLVED_INTO edge and tagging the old memory as invalidated. Use when the user says "this replaces X", "we changed our mind about Y, now it's Z", "previously we did X, now we do Y", "remplace X", "supersede", "j'ai changé d'avis sur X". Shortcut for /automem:associate with EVOLVED_INTO + invalidation tag.
+description: Mark that a new decision supersedes an older one, creating the EVOLVED_INTO edge and tagging the old memory as invalidated. Use proactively (agent-driven) when YOU just stored a new decision that supersedes an older decision recalled earlier in this session — don't wait for the user to ask. Also when the user explicitly says "this replaces X", "we changed our mind about Y, now it's Z", "previously we did X, now we do Y", "remplace X", "supersede", "j'ai changé d'avis sur X". Shortcut for /automem:associate with EVOLVED_INTO + invalidation tag.
 ---
 
 # AutoMem Evolve

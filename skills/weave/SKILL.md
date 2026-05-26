@@ -1,6 +1,6 @@
 ---
 name: weave
-description: Consolidate AutoMem memories by weaving graph edges instead of pruning. Identifies duplicates, contradictions, stale entries, and low-confidence memories — and either creates typed edges (CONTRADICTS, EVOLVED_INTO, REINFORCES) to capture the relationships, soft-expires the irrelevant ones, or downweights without deleting. Use when the user says "consolidate memories", "tisse les mémoires", "weave", "consolide", "clean up the project memory", "audit and reconcile", or when memory recall starts returning noisy/conflicting results.
+description: Consolidate AutoMem memories by weaving graph edges instead of pruning. Identifies duplicates (→ REINFORCES), contradictions (→ CONTRADICTS, both kept), supersessions (→ EVOLVED_INTO), stale entries (→ t_invalid soft expire), and low-confidence memories (→ importance=0 downweight). Auto-triggered by the Stop hook every ~20 stores per project (use --auto mode, which skips the categories requiring human judgment). Also triggered manually by the user via "consolide", "weave", "tisse les mémoires", "clean up project memory", or when memory recall starts returning noisy/conflicting results.
 ---
 
 # AutoMem Weave

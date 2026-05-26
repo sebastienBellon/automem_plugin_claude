@@ -1,6 +1,6 @@
 ---
 name: associate
-description: Create a typed edge between two AutoMem memories. Use when the user says "link these memories", "connect X to Y", "relate them", "associate this with that", "lie ces deux mémoires", or when two stored facts have a meaningful relationship (causal, contradictory, evolutionary, part-of, etc.) that should be made explicit in the graph.
+description: Create a typed edge between two AutoMem memories. Use proactively (agent-driven) when YOU notice during a turn that the memory you just stored is in a meaningful relationship — causal chain, derivation, part-of, exemplification — with a memory recalled or referenced earlier in this session. Also when the user explicitly says "link these memories", "connect X to Y", "relate them", "associate this with that", "lie ces deux mémoires", "associe ces deux".
 ---
 
 # AutoMem Associate

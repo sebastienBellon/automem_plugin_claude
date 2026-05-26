@@ -1,6 +1,6 @@
 ---
 name: forget
-description: Delete a memory from AutoMem with confirmation. Use when the user says "forget this", "delete X", "remove that memory", "oublie ça", "supprime cette mémoire", "efface", or when a memory is wrong, obsolete, or shouldn't exist. Supports soft delete (set t_invalid=now) for reversibility.
+description: Delete a memory from AutoMem with confirmation. **User-driven only** — never auto-trigger this skill. The agent should never delete memories on its own initiative; deletion requires explicit user intent. Use when the user explicitly says "forget this", "delete X", "remove that memory", "oublie ça", "supprime cette mémoire", "efface". For agent-initiated cleanup of stale or wrong memories, prefer /automem:weave (which soft-expires via t_invalid rather than deleting). Supports --soft for reversible delete.
 ---
 
 # AutoMem Forget
