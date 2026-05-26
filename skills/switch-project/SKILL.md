@@ -70,7 +70,7 @@ Active project override cleared. Auto-detection will resume:
   → next resolution: <result of cascade>
 
 The cascade goes: env var AUTOMEM_PROJECT_ID → ~/.automem-plugin/project_map.json
-→ walk-up for .automem-project / .git / automem.md / CLAUDE.md / AGENTS.md
+→ walk-up for .automem-project / .git / CLAUDE.md / AGENTS.md
 → ~/.automem-plugin/default-context.txt → literal "default".
 ```
 

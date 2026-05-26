@@ -24,7 +24,7 @@ Pick the best `type` from the 8 fixed AutoMem types based on content signals:
 | Content signal | `type` | optional tags to add |
 |---|---|---|
 | "we decided…", "always use…", "never…", "the rule is…" | `Decision` | — |
-| "X doesn't work because…", "don't try…", "X is buggy because…" | `Pattern` | `polarity:negative`, `kind:anti-pattern` |
+| "X doesn't work because…", "don't try…", "X is buggy because…" | `Insight` | `kind:anti-pattern` |
 | "this pattern works whenever…", "X recurs every time…" | `Pattern` | `polarity:positive` |
 | "I prefer…", "use X instead of Y" | `Preference` | — |
 | "the convention is…", "we always (format/name/structure)…" | `Style` | `kind:code-convention` |

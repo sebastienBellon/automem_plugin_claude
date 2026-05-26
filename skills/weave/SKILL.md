@@ -28,7 +28,7 @@ Read settings from `~/.automem-plugin/settings.json` (or use defaults):
 - `confidence_threshold` (default 0.3) — memories below this are pruning candidates *if* also low-importance and not pinned
 - `importance_threshold` (default 0.3) — memories below this are downweight candidates
 
-Optionally read project-specific overrides from `<cwd>/automem.md` `## Retention` section if present.
+(Optional per-project retention overrides via a project-config file were considered then dropped in v0.3.1 — out of scope for an OS memory layer. Retention is global via `~/.automem-plugin/settings.json`.)
 
 ### Step 2: Fetch all memories for the active project
 
@@ -171,7 +171,22 @@ Reversible operations:
 
 - **Dry-run** (default) — Step 4 only, no mutations. Always do this first.
 - `--apply` — accept the user confirmation in Step 4 and run Step 5.
-- `--auto` — fully non-interactive: applies Step 5 BUT only for unambiguous categories (3a-REINFORCES, 3c-stale, 3d-downweight). **Skips contradictions and EVOLVED_INTO** — those need human judgment. At the end, store a reminder memory: `weave detected <N> contradictions + <M> evolutions, run /automem:weave interactively to resolve them`.
+- `--auto` — fully non-interactive: applies Step 5 BUT only for unambiguous categories (3a-REINFORCES, 3c-stale, 3d-downweight). **Skips contradictions and EVOLVED_INTO** — those need human judgment.
+
+  **When `--auto` skips one or more CONTRADICTS / EVOLVED_INTO candidates**, store a single ephemeral memory to surface them at the next session start:
+
+  ```
+  store_memory(
+    content="weave --auto ran on <project> at <iso-now>: detected <N> CONTRADICTS candidates + <M> EVOLVED_INTO candidates that need human judgment. Pairs (memory IDs): <list of [a, b] pairs, max 10>. Run /automem:weave --apply to review.",
+    type="Context",
+    tags=["project:<active>", "kind:weave-pending-review", "ephemeral:true"],
+    importance=0.6,
+    confidence=1.0,
+    t_invalid="<today + 7 days, ISO 8601>",
+  )
+  ```
+
+  The 7-day t_invalid auto-expires the reminder so it doesn't accumulate. The `on_session_start.sh` hook checks for these at session startup and surfaces them in the rubric — see Step 6.
 - `--scope=project:<X>` — override the active project (default is the SessionStart banner's `AUTOMEM_PROJECT_ID`).
 - `--since=<period>` — only analyze memories more recent than the period (e.g. `--since="last month"`). Useful for incremental weave runs.
 

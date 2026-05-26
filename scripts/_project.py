@@ -12,7 +12,9 @@ Resolution priority (project_id) — order matters, first non-empty wins:
   3. ~/.automem-plugin/project_map.json lookup by cwd
   3b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing)
   4. Walk-up from cwd looking for a project marker:
-     .automem-project (explicit), .git (git slug), automem.md, CLAUDE.md, AGENTS.md
+     .automem-project (explicit), .git (git slug), CLAUDE.md, AGENTS.md
+     (automem.md / mem0.md were dropped in v0.3.1 — tool-specific memory-config
+     files, out of scope for an OS memory layer.)
   5. Default context (FINAL fallback):
      Read ~/.automem-plugin/default-context.txt content (or the legacy
      ~/.automem-plugin/cowork-default-project.txt for v0.1.1 back-compat).
@@ -67,11 +69,15 @@ LEGACY_COWORK_DEFAULT_FILE = os.path.expanduser("~/.automem-plugin/cowork-defaul
 # too code-centric for life/coaching/personal contexts).
 DEFAULT_SLUG = "default"
 
-# Markers checked during walk-up, in order of priority
+# Markers checked during walk-up, in order of priority.
+# Note: automem.md / mem0.md were dropped in v0.3.1 — they're tool-specific
+# memory config files that don't fit AutoMem's OS-memory-layer positioning.
+# CLAUDE.md and AGENTS.md are kept because they're agent-runtime markers
+# (used by the agent itself for memory or capability description), not
+# memory-config markers.
 PROJECT_MARKERS = [
     ".automem-project",  # explicit (text file = project slug)
     ".git",              # git repo (use remote slug or basename of git root)
-    "automem.md",        # AutoMem config file
     "CLAUDE.md",         # Claude Code memory file
     "AGENTS.md",         # OpenAI codex / generic agent memory file
 ]
@@ -199,8 +205,7 @@ def _walk_up_for_project(cwd: str, max_levels: int = 6) -> str:
     Marker resolution (in priority order, per directory visited):
       1. .automem-project file → its content (trimmed) is the project slug
       2. .git directory → git remote slug (owner-repo), or basename of git root
-      3. automem.md → basename of containing dir
-      4. CLAUDE.md or AGENTS.md → basename of containing dir
+      3. CLAUDE.md or AGENTS.md → basename of containing dir
     """
     current = os.path.abspath(cwd)
 
@@ -233,11 +238,9 @@ def _walk_up_for_project(cwd: str, max_levels: int = 6) -> str:
             # Git repo with no remote → use git root basename
             return os.path.basename(current) or "unknown"
 
-        # 3. automem.md
-        if os.path.isfile(os.path.join(current, "automem.md")):
-            return os.path.basename(current) or "unknown"
-
-        # 4. CLAUDE.md or AGENTS.md
+        # 3. CLAUDE.md or AGENTS.md (agent-runtime markers, kept after v0.3.1
+        # removal of automem.md/mem0.md — these are not memory-config files
+        # but universal agent-memory markers used by Claude Code / Codex).
         if (
             os.path.isfile(os.path.join(current, "CLAUDE.md"))
             or os.path.isfile(os.path.join(current, "AGENTS.md"))

@@ -50,9 +50,12 @@ Categories and concrete triggers:
 
 - \`Decision\` — architectural choice or trade-off ("Chose FalkorDB for graph
   because Cypher fits the patterns better than Gremlin")
-- \`Pattern\` — recurring positive pattern OR anti-pattern (add tag
-  \`polarity:negative\` for anti) ("Batch insert on users table triggers
-  deadlock with audit log — avoid")
+- \`Pattern\` — recurring positive pattern observed in the project
+  ("Event-driven communication is the dominant architectural pattern here")
+- For anti-patterns / things to AVOID, use \`Insight\` with tag
+  \`kind:anti-pattern\` instead ("Batch insert on users table triggers
+  deadlock with audit log — avoid"). Anti-patterns are lessons learned,
+  semantically closer to Insight than to Pattern.
 - \`Style\` / convention — code or workflow conventions ("This repo uses
   snake_case for Python files, camelCase for TypeScript")
 - \`Preference\` — user preferences ("User prefers PRs split per feature,

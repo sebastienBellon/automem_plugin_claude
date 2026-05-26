@@ -62,7 +62,7 @@ For each non-empty type bucket, print a section header and up to 20 entries:
 
 ### Pattern (<count>)
 
-  - <date> "<content first 100 chars>" [automem:<short>]   polarity:negative
+  - <date> "<content first 100 chars>" [automem:<short>]   kind:anti-pattern (if Insight + anti-pattern)
   - ...
 
 ### Style (<count>)
@@ -77,7 +77,7 @@ For each non-empty type bucket, print a section header and up to 20 entries:
 Per-entry decorations (only print when present):
 - `pinned` if `tags` contain `pinned`
 - `importance=<X>` if `importance > 0.85` (highlights the structural)
-- `polarity:negative` for anti-patterns
+- `kind:anti-pattern` for anti-patterns (stored as Insight type)
 - `kind:<X>` for any `kind:*` tag
 - `INVALIDATED` if `invalidates:` tag present or `t_invalid` in the past
 

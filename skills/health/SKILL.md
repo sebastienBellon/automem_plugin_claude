@@ -40,7 +40,7 @@ Read from the SessionStart banner context:
 - `branch` — from `AUTOMEM_BRANCH`
 - `session` — from `AUTOMEM_SESSION_ID`
 
-PASS if all four are non-empty. WARN if `project` is `default` AND there's no `.automem-project` / `.git` / `automem.md` / `CLAUDE.md` / `AGENTS.md` marker in the walk-up path (suggest `/automem:switch-project` to fix).
+PASS if all four are non-empty. WARN if `project` is `default` AND there's no `.automem-project` / `.git` / `CLAUDE.md` / `AGENTS.md` marker in the walk-up path (suggest `/automem:switch-project` to fix).
 
 ### Check 3: Counts
 

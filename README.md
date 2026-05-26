@@ -76,7 +76,7 @@ Toutes les mémoires sont scopées par tag `project:<slug>`. Le slug est résolu
 1. Variable d'environnement `AUTOMEM_PROJECT_ID` (ephemeral, per-shell)
 2. **`~/.automem-plugin/active-project.txt`** — slug actif global, écrit par `/automem:switch-project`. Le mécanisme principal côté utilisateur : un slug, persiste across sessions, change à la demande.
 3. `~/.automem-plugin/project_map.json` (mécanisme avancé : binding par cwd, utile si tu veux différents slugs pour différents repos git)
-4. Walk-up depuis le `cwd` cherchant `.automem-project`, `.git`, `automem.md`, `CLAUDE.md`, `AGENTS.md`
+4. Walk-up depuis le `cwd` cherchant `.automem-project`, `.git`, `CLAUDE.md`, `AGENTS.md`
 5. Fallback : contenu de `~/.automem-plugin/default-context.txt` si présent, sinon littéral `default`
 
 Convention optionnelle `domain:<X>` pour filtrer par catégorie : `code`, `personal`, `coaching`, `planning`, `learning` (liste extensible). Détails dans [`PORTAGE-PLAN.md`](./PORTAGE-PLAN.md) §3.

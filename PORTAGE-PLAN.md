@@ -62,7 +62,7 @@ Les rubriques mem0 utilisent un enum libre dans `metadata.type` (`decision`, `ta
 | mem0 metadata.type | AutoMem `type` | tags complémentaires |
 |---|---|---|
 | `decision` | `Decision` | — |
-| `anti_pattern` | `Pattern` | `polarity:negative`, `kind:anti-pattern` |
+| `anti_pattern` | `Insight` | `kind:anti-pattern` |
 | `convention` | `Style` | `kind:code-convention` |
 | `user_preference` | `Preference` | — |
 | `task_learning` | `Insight` | `kind:learning` |
@@ -107,7 +107,7 @@ Mécanisme final, par ordre de priorité :
 | 1 | Env var `AUTOMEM_PROJECT_ID` | Override ephemeral per-shell, utile pour un one-off |
 | 2 | **`~/.automem-plugin/active-project.txt`** (écrit par `/automem:switch-project`) | **Le mécanisme principal côté utilisateur.** Un seul slug, persiste across sessions, change uniquement quand l'utilisateur le décide. Pas de magie cwd. |
 | 3 | `~/.automem-plugin/project_map.json` (lookup par cwd + self-healing hash remote) | Mécanisme avancé : différents slugs selon le repo. Pour quand tu travailles sur plusieurs projets git en parallèle et veux que chacun ait son propre scope. |
-| 4 | Walk-up cwd (max 6 niveaux) pour markers | `.automem-project` > `.git` (slug owner-repo) > `automem.md` > `CLAUDE.md` > `AGENTS.md`. Auto-détection pour les sessions CLI lancées dans un projet. |
+| 4 | Walk-up cwd (max 6 niveaux) pour markers | `.automem-project` > `.git` (slug owner-repo) > `CLAUDE.md` > `AGENTS.md`. Auto-détection pour les sessions CLI lancées dans un projet. Note v0.3.1 : `automem.md` / `mem0.md` retirés — tool-specific memory-config, hors scope OS memory layer. |
 | 5 | `~/.automem-plugin/default-context.txt` (back-compat aussi `cowork-default-project.txt`) | Slug "par défaut" pour les cas où rien d'autre ne s'applique. Sinon littéral `default`. |
 
 ### Pourquoi v0.1.6 → v0.1.7 a simplifié ?
@@ -154,7 +154,7 @@ v0.1.7 ajoute donc `active-project.txt` (priorité 2 dans la cascade) comme over
 
 | Skill | Source mem0 ? | Action |
 |---|---|---|
-| `onboard` | oui | **Adapter** — pas d'API key wizard (l'auth est au niveau MCP/VPS), pas de coding_categories. Garde l'import CLAUDE.md / AGENTS.md / .cursorrules / mem0.md → automem.md |
+| `onboard` | oui | **Adapter** — pas d'API key wizard (l'auth est au niveau MCP/VPS), pas de coding_categories. Garde l'import CLAUDE.md / AGENTS.md / .cursorrules (automem.md / mem0.md retirés en v0.3.1). |
 | `remember` | oui | **Porter trivialement** — `store_memory(type=<mapped>, tags=[scope...])` |
 | `recall` (= peek) | oui | **Porter+enrichir** — exploiter `auto_decompose`, `expand_relations` |
 | `tour` | oui | **Porter** — `recall_memory` paginé groupé par `type` |
@@ -288,10 +288,18 @@ AutoMem applique un NER côté serveur sur le `content` de chaque mémoire et aj
 
 ## 9. Décisions ouvertes à trancher
 
-1. ~~**Convention de scoping par tags**~~ ✅ **FIGÉE le 26 mai 2026** — scoping minimal : `project:<slug>` partout + `session:<id>` sur l'éphémère seulement (cf. §3 mis à jour).
-2. **Mapping `anti_pattern`** — Type `Pattern` + tag `polarity:negative` est ma recommandation. Alternative : type `Insight` + tag `kind:anti-pattern`. Préférence à confirmer.
-3. **`automem.md` vs `mem0.md`** — Si tu as déjà des fichiers `mem0.md` dans certains projets WhisperIt, on garde le nom pour compat ou on bascule sur `automem.md` ?
-4. ~~**Wrapper HTTP `_recall.py`**~~ ✅ **FIGÉ le 26 mai 2026** — AutoMem est MCP-only (cf. §0bis), pas de wrapper HTTP nécessaire ni possible. Tous les hooks passent par injection de rubriques.
+Toutes tranchées au 26 mai 2026 (v0.3.1).
+
+1. ~~**Convention de scoping par tags**~~ ✅ **FIGÉE** — scoping minimal : `project:<slug>` partout + `session:<id>` sur l'éphémère seulement (cf. §3).
+2. ~~**Mapping `anti_pattern`**~~ ✅ **FIGÉE en v0.3.1** — type `Insight` + tag `kind:anti-pattern` (au lieu de `Pattern` + `polarity:negative`). Raison : cohérence avec le mapping existant (task_learning → Insight + kind:learning ; bug_fix → Insight + kind:bug-fix). Le type `Pattern` reste réservé aux abstractions positives observées.
+
+ — Type `Pattern` + tag `polarity:negative` est ma recommandation. Alternative : type `Insight` + tag `kind:anti-pattern`. Préférence à confirmer.
+3. ~~**`automem.md` vs `mem0.md`**~~ ✅ **FIGÉE en v0.3.1 — retirés du scope**. Les deux fichiers étaient des mémoires-configs tool-specific (mem0 / automem-as-mem0-clone), pas pertinents pour AutoMem positionné comme OS memory layer cross-domain. Walk-up `_project.py` et scan `onboard` les ignorent désormais. CLAUDE.md / AGENTS.md / .cursorrules / .windsurfrules conservés (markers agent-runtime universels, pas config-mémoire).
+4. ~~**Wrapper HTTP `_recall.py`**~~ ✅ **FIGÉ** — AutoMem est MCP-only (cf. §0bis), pas de wrapper HTTP nécessaire ni possible. Tous les hooks passent par injection de rubriques.
+
+5. ~~**SubagentStop vs Stop**~~ ✅ **FIGÉE en v0.3.1 — SubagentStop intentionnellement non câblé**. Raison : un sous-agent (Task tool) est presque toujours délégué pour une tâche ciblée (recherche, audit, lookup parallèle) et retourne un résultat synthétique à l'agent principal. Câbler SubagentStop avec la même rubrique que Stop produirait (a) des stores fragmentés sans contexte global, (b) une notification `> memory ops` invisible au user (le sous-agent ne renvoie pas ses hooks), (c) un double-bump du compteur de stores qui fausse le weave périodique. L'agent principal a la vue d'ensemble, c'est lui qui doit synthétiser et stocker. Si l'usage évolue vers des sous-agents en deep-research autonome, on rouvre la question.
+
+6. ~~**Auto-associate dans `weave`**~~ ✅ **FIGÉE en v0.3.1 — Option A (statu quo)** + enhancement weave-pending-review. `weave --auto` skip volontairement les CONTRADICTS et EVOLVED_INTO parce que (a) l'heuristique de détection lexicale est fragile et faux positifs probables, (b) en mode silent agent-driven, l'utilisateur n'aurait aucune visibilité sur les arêtes créées sans aller chercher manuellement. Enhancement : quand `--auto` détecte ce type de candidats, il stocke un mémo `Context kind:weave-pending-review` qui résume les paires en attente. Le hook SessionStart suivant détecte ces pending reviews récents (< 7 jours) et les surface dans la rubric pour proposer un `/automem:weave --apply` interactif. À ré-évaluer après accumulation d'usage et de données (50+ mémoires par projet) — si les heuristiques s'avèrent fiables, on pourra basculer en auto-application.
 5. **`SubagentStop` vs `Stop`** — Mêmes rubriques ou différenciation ?
 6. **Auto-associate dans `weave`** — Le skill weave peut-il créer des arêtes `CONTRADICTS` automatiquement (avec confirmation par batch), ou toujours demander à l'utilisateur arête par arête ?
 

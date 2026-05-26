@@ -72,7 +72,7 @@ store_memory(
 )
 \`\`\`
 
-Type cheat sheet: \`Decision\` (choices, trade-offs), \`Pattern\` (recurring + anti-patterns with tag \`polarity:negative\`), \`Style\` (code conventions), \`Preference\` (user prefs), \`Insight\` (task learning / bug-fix root cause, tag \`kind:bug-fix\`), \`Habit\` (workflows), \`Context\` (environmental / ephemeral).
+Type cheat sheet: \`Decision\` (choices, trade-offs), \`Pattern\` (recurring positive patterns observed), \`Style\` (code conventions), \`Preference\` (user prefs), \`Insight\` (task learning, bug-fix root cause with tag \`kind:bug-fix\`, anti-pattern with tag \`kind:anti-pattern\`), \`Habit\` (workflows), \`Context\` (environmental / ephemeral).
 
 ### Step 2 — Weave new memories into the graph (agent-driven, silent)
 

@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Sets up the AutoMem plugin for the current project — verifies MCP connectivity, detects and imports declarative project files (CLAUDE.md, AGENTS.md, .cursorrules, automem.md), and confirms identity. Use on first run in a new project, after configuration changes, or to re-import project context.
+description: Sets up the AutoMem plugin for the current project — verifies MCP connectivity, detects and imports declarative project files (CLAUDE.md, AGENTS.md, .cursorrules), and confirms identity. Use on first run in a new project, after configuration changes, or to re-import project context.
 ---
 
 # AutoMem Onboarding
@@ -48,7 +48,12 @@ Look for these files at the project root (use Glob on `$AUTOMEM_CWD`):
 2. `AGENTS.md`
 3. `.cursorrules`
 4. `.windsurfrules`
-5. `automem.md`
+
+(Note v0.3.1: `automem.md` / `mem0.md` removed from this list — they were
+tool-specific memory-config files, out of scope for AutoMem as an OS
+memory layer. CLAUDE.md / AGENTS.md / .cursorrules / .windsurfrules are
+kept because they're agent-runtime files that describe how the agent
+should operate in this project — relevant context to import.)
 
 For each file found, ask the user: `Found <filename> (<size> bytes). Import into AutoMem as project profile? [Y/n]`
 

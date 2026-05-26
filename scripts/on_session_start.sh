@@ -80,13 +80,23 @@ case "$SOURCE" in
 1. Run \`check_database_health\` (1 fast call) to confirm connectivity AND get the current \`memory_count\` for project=$AUTOMEM_PROJECT_ID:
    \`check_database_health()\` then look at the response.
 
-2. **If memory_count is 0** for this project (no memories yet), invoke the \`automem:onboard\` skill immediately — it imports CLAUDE.md / AGENTS.md / .cursorrules / automem.md and bootstraps context. Do not ask the user.
+2. **If memory_count is 0** for this project (no memories yet), invoke the \`automem:onboard\` skill immediately — it imports CLAUDE.md / AGENTS.md / .cursorrules and bootstraps context. Do not ask the user.
 
 3. **Otherwise**, run 2 parallel \`recall_memory\` calls before responding:
    - \`recall_memory(query="recent decisions", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Decision"], limit=5, sort="time_desc")\`
    - \`recall_memory(query="patterns conventions style", tags=["project:$AUTOMEM_PROJECT_ID"], context_types=["Pattern", "Style"], limit=5, sort="score")\`
 
    You may include the memory count in your identity banner if you wish: \`AutoMem Active | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH | memories=<count>\`.
+
+4. **Check for weave pending review** — if previous \`/automem:weave --auto\` runs detected CONTRADICTS or EVOLVED_INTO candidates that require human judgment, they were stored as \`Context kind:weave-pending-review\` memories. Surface them once:
+
+   \`recall_memory(query="weave pending review", tags=["project:$AUTOMEM_PROJECT_ID", "kind:weave-pending-review"], limit=3, sort="time_desc")\`
+
+   If any results come back AND their stored \`t_invalid\` is in the future (still active), include a single discreet line in your first response after the identity banner:
+
+   > **Note**: previous weave detected \`<N>\` items needing review. Run \`/automem:weave --apply\` to resolve.
+
+   If no results or all expired, omit this note entirely. Do NOT make it a big deal — one line, optional follow-up by user.
 EOF
     ;;
 
