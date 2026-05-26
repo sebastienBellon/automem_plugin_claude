@@ -135,7 +135,7 @@ if [ -z "$RUBRIC_ALREADY_SHOWN" ]; then
 
 **AutoMem search hint** (shown 1× per session): Search proactively when the user references past work, asks decision questions, hits errors, or starts non-trivial tasks. Skip for acknowledgements, small talk, or pure factual questions (where storing the answer would be more useful than recalling).
 
-Always include \`tags=["project:$PROJECT"]\` in your \`recall_memory\` calls. Use \`auto_decompose=true\` when the query is broad and you'd benefit from supplementary angles. Use the \`/automem:recall\` skill if you want compact pretty-printed output.
+For \`recall_memory\`: default to \`tags=["project:$PROJECT"]\` as a **soft filter** to scope results. **If recall returns 0 results, retry WITHOUT the project tag** — memories may live under sibling slugs or \`project:default\` (legacy pre-v0.3.2 worktree-scope bug stranded some). The project tag is a filter, not a routing key — drop it freely for cross-project queries. Use \`auto_decompose=true\` for broad queries; use \`/automem:recall\` for compact pretty-printed output.
 EOF
   touch "$RUBRIC_FLAG" 2>/dev/null || true
 fi

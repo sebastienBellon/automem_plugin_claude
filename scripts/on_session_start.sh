@@ -63,11 +63,18 @@ IMPORTANT: In your FIRST response to the user, display the identity banner exact
 AutoMem Active | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH
 \`\`\`
 
-**Scope policy (tags)** for every \`store_memory\` call:
+**Scope policy (tags)** — \`store_memory\` and \`recall_memory\` are NOT symmetric:
+
+*For every \`store_memory\` call* (mandatory — the tag scopes the write):
 - Always include tag: \`project:$AUTOMEM_PROJECT_ID\` (the slug is a "context", not necessarily a code repo — can be a coaching engagement, a life theme, a journaling thread, anything)
 - Optionally add a \`domain:<X>\` tag when the context type matters for filtering — recommended values: \`code\`, \`personal\`, \`coaching\`, \`planning\`, \`learning\`. Use whatever fits the conversation; the list is a convention, not a hard enum.
 - For ephemeral memories (type \`Context\` with kind:session-state or kind:compact-summary), also add: \`session:$AUTOMEM_SESSION_ID\` and \`ephemeral:true\`
 - Do NOT add \`user:\` or \`branch:\` tags by default — put branch context in \`content\` if critical.
+
+*For every \`recall_memory\` call* (PREFER, but soft — the tag is a *filter*, not a routing key):
+- Default to \`tags=["project:$AUTOMEM_PROJECT_ID"]\` to scope results to the current context.
+- **If recall returns 0 results, retry without the project tag** before concluding nothing exists. Legacy memories may sit under sibling slugs or \`project:default\` (e.g. pre-v0.3.2 worktree-scope bug stranded some). Drop the tag also for cross-project queries ("what do I know about X across all my work").
+- Treat the project tag as an optional \`.where()\` clause, not as the index path.
 
 BANNER
 
