@@ -1,0 +1,16 @@
+{
+  "name": "automem",
+  "owner": {
+    "name": "Sébastien Bellon"
+  },
+  "plugins": [
+    {
+      "name": "automem",
+      "source": {
+        "source": "github",
+        "repo": "sebastienBellon/automem_plugin_claude"
+      },
+      "description": "Persistent memory for Claude Code via AutoMem (self-hosted FalkorDB + Qdrant)."
+    }
+  ]
+}

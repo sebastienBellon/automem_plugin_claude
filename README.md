@@ -28,19 +28,45 @@ skills/              # skills /automem:* exposés à l'utilisateur
 PORTAGE-PLAN.md      # design doc / roadmap
 ```
 
-## Installation (dev local)
+## Installation
 
-Le plugin n'est pas encore publié sur un marketplace public. Voie recommandée pour le tester en local : **marketplace local + CLI `claude`**.
-
-L'upload ZIP via l'UI Cowork (sidebar Customize → Plugins → Upload) déclenche actuellement un « Plugin validation failed » non détaillé. La CLI `claude plugin install`, qui partage la config `~/.claude/` avec Cowork, fait passer le plugin sans broncher — et Cowork le récupère au redémarrage.
+Le repo est son propre **marketplace** (descripteur `.claude-plugin/marketplace.json` à la racine, source `github`). Une seule commande pour ajouter le marketplace, une pour installer le plugin :
 
 ```bash
-# 1. Cloner le repo
-git clone https://github.com/sebastienBellon/automem_plugin_claude.git ~/Downloads/automem_plugin_claude
+claude plugin marketplace add sebastienBellon/automem_plugin_claude
+claude plugin install automem@automem
+```
 
-# 2. Créer un marketplace local qui pointe vers le clone
-mkdir -p ~/Downloads/automem-marketplace/.claude-plugin
-cat > ~/Downloads/automem-marketplace/.claude-plugin/marketplace.json <<'EOF'
+Redémarre Cowork / ouvre une nouvelle session CLI après installation. Une bannière `AutoMem Active | project=… | branch=…` apparaîtra au prochain `SessionStart`.
+
+### Repo privé
+
+Si le repo est privé, l'install manuelle ci-dessus réutilise tes credentials git existants (`gh` CLI, ssh-agent, macOS Keychain, etc.) — rien à configurer si `git clone git@github.com:sebastienBellon/automem_plugin_claude.git` marche déjà chez toi.
+
+Pour activer les **auto-updates au démarrage** (non-interactifs), il faut un token dans l'environnement :
+
+```bash
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+```
+
+### Mise à jour
+
+```bash
+claude plugin marketplace update automem
+```
+
+Re-fetch le repo depuis GitHub et applique la dernière version disponible.
+
+### Alternative : install local (dev)
+
+Si tu hackes activement le plugin et veux voir tes modifs sans push :
+
+```bash
+# Cloner + créer un marketplace local qui pointe vers le clone
+git clone https://github.com/sebastienBellon/automem_plugin_claude.git ~/dev/automem_plugin_claude
+
+mkdir -p ~/dev/automem-marketplace/.claude-plugin
+cat > ~/dev/automem-marketplace/.claude-plugin/marketplace.json <<'EOF'
 {
   "name": "local-automem",
   "owner": { "name": "Sébastien Bellon" },
@@ -50,19 +76,8 @@ cat > ~/Downloads/automem-marketplace/.claude-plugin/marketplace.json <<'EOF'
 }
 EOF
 
-# 3. Enregistrer le marketplace + installer
-claude plugin marketplace add ~/Downloads/automem-marketplace
+claude plugin marketplace add ~/dev/automem-marketplace
 claude plugin install automem@local-automem
-```
-
-Redémarre Cowork après installation. Le plugin est désormais disponible côté CLI **et** côté Cowork (même config `~/.claude/`). Une bannière `AutoMem Active | project=… | branch=…` apparaîtra au prochain `SessionStart`.
-
-### Mise à jour
-
-Le marketplace local lit le plugin par chemin (pas par checkout d'un commit), donc tes modifications locales sont immédiatement visibles. Après un `git pull` (ou pour récupérer une nouvelle version après modifs locales) :
-
-```bash
-claude plugin update automem
 ```
 
 ## Configuration
