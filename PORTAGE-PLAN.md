@@ -222,21 +222,55 @@ Trois clés nouvelles vs mem0 : `importance_threshold` (pruning), `weave_auto_as
 
 ---
 
-## 8. Roadmap révisée — par phase
+## 8. Roadmap — re-priorisée par valeur d'usage (révisée 26 mai 2026 v0.1.9)
 
-| Phase | Durée | Livrable |
+**Note de design** : la roadmap initiale était structurée par phases (héritage du plan de portage mem0), fidèle au plan d'origine par souci d'exhaustivité. Une réflexion sur l'usage réel d'AutoMem comme **memory layer OS principal** (cross-domain : code + vie + coaching + journal + planning, pas seulement assistant dev) montre que plusieurs phases du plan d'origine n'apportent pas de valeur dans ce cas d'usage. On bascule la roadmap restante sur une structure par **Tier d'usage**.
+
+### Acquis (déjà livré, ne plus toucher sauf bug fix)
+
+| Élément | Version | Statut |
 |---|---|---|
-| **Phase 0 — Prép** ✅ | 30 min | Inspection serveur, validation surface AutoMem, this doc |
-| **Phase 1 — MVP** | 2-3 h | `plugin.json`, `.mcp.json` (optionnel si déjà configuré), `_identity.sh` (avec décision scoping), `_project.py`, `_scope.py`, `on_session_start.sh`, `on_stop.sh`, skill `onboard` adapté → **auto-load au démarrage + auto-save fin de tour** |
-| **Phase 2 — Heuristiques** | 2-3 h | `on_user_prompt.sh` complet, `_recall.py` wrapper HTTP, rubriques dédupliquées, regex de détection (stack traces, file paths, intents) → **détection contextuelle + pré-fetch** |
-| **Phase 3 — Auto-capture** | 1-2 h | `auto_import.py`, `enforce_metadata_defaults.sh`, `block_memory_write.sh` |
-| **Phase 4 — Compaction** ✅ | 1-2 h | `on_pre_compact.sh` (rubrique extract durable facts) + recovery + capture intégrés dans `on_session_start.sh` case `compact` (en v0.1.5 — PostCompact n'est PAS un événement officiel Claude Code, donc le hook séparé `on_post_compact.sh` ne firerait jamais ; toute la logique post-compact passe par `SessionStart:compact` qui, lui, fire bien). Note : `capture_compact_summary.py` du plan initial est abandonné car AutoMem est MCP-only — la capture est déléguée à Claude via MCP via la rubrique injectée. |
-| **Phase 5 — Skills core** | 3-4 h | `remember`, `recall`, `tour`, `stats`, `health` |
-| **Phase 6 — Skills graphe** | 4-5 h | `weave` (réinventé), `associate` (nouveau), `evolve` (nouveau), `pin`, `forget`, `memory-reviewer` |
-| **Phase 7 — Skills orchestration** | 3-4 h | `switch-project`, `list-projects`, `context-loader` (avec expand_relations), `export`, `import`, hooks de confort (`on_file_read`, `on_bash_output`, `on_post_commit`) |
-| **Phase 8 — Polish** | variable | README, `setup-automem` skill, output style, tests |
+| **Phase 1 — MVP** (plugin.json, _identity, _project, on_session_start, on_stop, skill onboard) | v0.1.0 → v0.1.5 (fix scoping + state dir) | ✅ |
+| **Phase 2 — Heuristiques** (on_user_prompt.sh : ERROR, FILE_PATHS, RESUME, REMEMBER FR/EN + rubric dédup 1×/session) | v0.1.1 | ✅ |
+| **Phase 4 — Compaction** (on_pre_compact + recovery/capture intégrés dans SessionStart:compact) | v0.1.3 → v0.1.5 (drop PostCompact non-officiel) | ✅ |
+| **Skills core** : onboard, remember, recall, switch-project (simplifié global), health | v0.1.0 → v0.1.7 | ✅ |
+| Audit fixes (perms, state dir, debug visibility), garde-fous NER | v0.1.5 → v0.1.8 | ✅ |
 
-**Total estimé** : 17-23 h. **MVP utilisable** dès Phase 1+2 (~5 h).
+### Tier 1 — Très haute valeur, à faire maintenant (v0.1.9)
+
+Ces 4 skills débloquent vraiment AutoMem en tant que graphe vivant, sans lesquels le plugin reste un système plat « mémoire-vectorielle + tags ».
+
+- `/automem:associate <id1> <id2> <type> [strength]` — créer une arête typée entre deux mémoires (parmi les 11 types : `RELATES_TO`, `LEADS_TO`, `OCCURRED_BEFORE`, `PREFERS_OVER`, `EXEMPLIFIES`, `CONTRADICTS`, `REINFORCES`, `INVALIDATED_BY`, `EVOLVED_INTO`, `DERIVED_FROM`, `PART_OF`). Wrapper sur `associate_memories` MCP. Trivial (~15 min).
+- `/automem:evolve <new_id> <old_id>` — raccourci pour marquer qu'une décision en remplace une autre : crée l'arête `EVOLVED_INTO` + tag `invalidates:<new>` sur l'ancienne pour permettre le filtrage. ~15 min.
+- `/automem:pin <id_ou_query>` — protection d'une mémoire structurelle : set `importance=1.0` + tag `pinned`. Empêche les pruning futurs. Flag `--unpin` pour retirer. ~15 min.
+- `/automem:forget <id_ou_query>` — delete avec confirmation. Flag `--soft` pour set `t_invalid=now` au lieu de delete (réversible). Flag `--force` pour skip la confirmation. ~15 min.
+
+Total Tier 1 : **~1h de code**.
+
+### Tier 2 — Valeur élevée, à faire quand l'usage le demande
+
+- `/automem:list-projects` — vue d'ensemble des contextes actifs (`recall_memory(tag_match=prefix, tags=["project:"])` + dédup + compte). Utile dès que tu as 3-4 projets en parallèle. ~30 min.
+- `/automem:weave` — consolidation par tissage (créer arêtes `CONTRADICTS` au lieu de pruner, set `t_invalid` sur stale, baisser `importance` sur low-confidence). Conceptuellement la killer feature, mais réclame **50+ mémoires** par projet pour être pertinent (aujourd'hui ~15). À faire quand le volume est là. ~1-1.5 h.
+
+### Tier 3 — Confort, valeur modérée, optionnel
+
+- `/automem:tour` — navigation paginée par type. Overlap fort avec `recall --type=X --limit=20`. ~30 min.
+- `/automem:stats` — compte par type, activité session, etc. Diagnostic + curiosité. ~30 min.
+- `/automem:memory-reviewer` — audit read-only (duplicates, contradictions, stale) avant un `weave`. Marginal. ~45 min.
+- `/automem:context-loader` — multi-recall avec `expand_relations`. Mais les rubriques de `on_session_start` et `on_user_prompt` font déjà 80% du job. ~45 min.
+
+### Tier 4 — Abandonné, non pertinent pour ce cas d'usage
+
+Volontairement écartés. Si l'usage évolue (genre tu décides un jour d'utiliser AutoMem aussi comme assistant code spécialisé), on rouvre.
+
+- **Phase 3 entière** (auto_import.py, enforce_metadata_defaults.sh, block_memory_write.sh) : défense en profondeur orientée dev workflow. `auto_import` ne s'applique pas à un memory layer OS qui tourne souvent dans un scratchpad sans `CLAUDE.md`. `enforce_metadata_defaults` est marginal vu que la rubrique `on_stop.sh` rappelle déjà les tags. `block_memory_write` protège contre une attaque qui ne se produit pas (Claude ne crée pas spontanément de `MEMORY.md`).
+- **Hooks confort code** (`on_file_read.sh` boost `active_path`, `on_bash_output.sh` détection stack traces, `on_post_commit.sh` capture git commit) : optimisations spécifiques au dev workflow. Neutres voire encombrants pour un usage cross-domain.
+- **`/automem:export` et `/automem:import`** : portabilité non urgente. Backup possible via FalkorDB dump direct côté VPS si besoin.
+- **Phase 8 — `setup-automem` skill, output style, tests** : polish. À voir après usage réel pendant quelques semaines.
+
+### Total restant après Tier 1 + Tier 2 sélectif
+
+~3-4 h de code pour avoir 95% de la valeur d'AutoMem comme memory layer OS personnel. Le reste est optionnel ou hors-scope.
 
 ---
 
