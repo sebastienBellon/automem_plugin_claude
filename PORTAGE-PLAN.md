@@ -252,12 +252,14 @@ Total Tier 1 : **~1h de code**.
 - `/automem:list-projects` ✅ — vue d'ensemble des contextes actifs (recall global + extraction client-side des tags `project:*`, dédup, count par projet). Flags `--with-types`, `--all-time`, `--since`. v0.2.0.
 - `/automem:weave` ✅ — consolidation par tissage : crée arêtes `REINFORCES`/`CONTRADICTS`/`EVOLVED_INTO` au lieu de pruner, soft-expire les stale (`t_invalid`), downweight les low-confidence (`importance=0`). Mode dry-run par défaut + `--apply` + `--auto`. Skip pinned. Réclame ~50+ mémoires par projet pour être vraiment utile (aujourd'hui 15-20). v0.2.0.
 
-### Tier 3 — Confort, valeur modérée, optionnel
+### Tier 3 — Confort, valeur modérée (✅ livré v0.3.0)
 
-- `/automem:tour` — navigation paginée par type. Overlap fort avec `recall --type=X --limit=20`. ~30 min.
-- `/automem:stats` — compte par type, activité session, etc. Diagnostic + curiosité. ~30 min.
-- `/automem:memory-reviewer` — audit read-only (duplicates, contradictions, stale) avant un `weave`. Marginal. ~45 min.
-- `/automem:context-loader` — multi-recall avec `expand_relations`. Mais les rubriques de `on_session_start` et `on_user_prompt` font déjà 80% du job. ~45 min.
+Initialement marqué optionnel ("à faire si l'usage le demande"), finalement livré dans la foulée pour avoir un plugin 100% complet sur lequel faire les évals d'usage réel (logique Sébastien : « finir puis évaluer plutôt que coder spéculativement plus tard »).
+
+- `/automem:tour` ✅ — navigation paginée par les 8 types AutoMem, sortie groupée + decorations (pinned, importance, kind:, INVALIDATED). Flags `--type`, `--since`, `--limit`, `--include-ephemeral`, `--include-invalidated`. v0.3.0.
+- `/automem:stats` ✅ — distribution quantitative par type/domain/age/importance/confidence, pinned/ephemeral/invalidated counts, mode `--weekly`/`--monthly` pour activity over time. Mode `--export-json` pour scripting. v0.3.0.
+- `/automem:memory-reviewer` ✅ — audit READ-ONLY identifiant duplicates / contradictions / stale / low-conf / orphans / type-issues, sortie compact avec example IDs + recommandation next action (weave, associate, evolve). Pas de mutation, jamais. v0.3.0.
+- `/automem:context-loader` ✅ — multi-recall enrichi (3 angles parallèles + expand_relations) avec output structuré par type + relations + synthesis paragraph. Mode agent-driven (internalise sans afficher) ou user-driven (affiche le bloc structuré). Flag `--depth=0|1|2` pour contrôler l'expansion graph. v0.3.0.
 
 ### Tier 4 — Abandonné, non pertinent pour ce cas d'usage
 
