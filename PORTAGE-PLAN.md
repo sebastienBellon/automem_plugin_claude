@@ -98,22 +98,25 @@ AutoMem n'a pas de scoping natif `user_id` / `app_id` / `run_id`. Plutôt que de
 
 Parce que le projet est l'unité de **continuité** (« je travaille là-dessus depuis 3 mois »), alors que le domain est l'unité de **catégorie** (« ce sont des questions de carrière »). Un projet peut traverser plusieurs domains (ex. `project:reconversion-2026` mélange `domain:coaching`, `domain:planning`, `domain:learning`). Un domain peut couvrir plusieurs projets (ex. `domain:code` regroupe `project:WhisperIt` + `project:automem-plugin` + …). Les deux dimensions sont orthogonales.
 
-### Résolution du `project:<slug>` (mise à jour 26 mai 2026, post-test réel)
+### Résolution du `project:<slug>` (mise à jour 26 mai 2026, v0.1.7 simplifié)
 
-Bug critique observé en conditions réelles : depuis Cowork, le cwd est un scratchpad `local-agent-mode-sessions/.../outputs` → l'ancien fallback `basename(cwd)` retournait `outputs` pour TOUTES les sessions Cowork, fragmentant les mémoires en deux buckets disjoints (Cowork=`outputs` vs CLI=`<slug>`). Fix livré :
+Mécanisme final, par ordre de priorité :
 
-| Étape | Mécanisme | Résultat |
+| Étape | Mécanisme | Pourquoi |
 |---|---|---|
-| 1 | Override env var `AUTOMEM_PROJECT_ID` | Priorité absolue |
-| 2 | Lookup `~/.automem-plugin/project_map.json` (cwd + self-healing par hash de remote URL) | Mapping explicite |
-| 3 | **Walk-up** depuis cwd (max 6 niveaux) cherchant un marker | `.automem-project` (texte explicite) > `.git` (remote slug ou basename git root) > `automem.md` > `CLAUDE.md` > `AGENTS.md` |
-| 4 | **Détection Cowork scratchpad** (path contient `local-agent-mode-sessions` ou se termine par `/Claude/.../outputs`) | Lecture de `~/.automem-plugin/cowork-default-project.txt` ou fallback sur le slug `cowork-default` |
-| 5 | Fallback final | `basename(cwd)` |
+| 1 | Env var `AUTOMEM_PROJECT_ID` | Override ephemeral per-shell, utile pour un one-off |
+| 2 | **`~/.automem-plugin/active-project.txt`** (écrit par `/automem:switch-project`) | **Le mécanisme principal côté utilisateur.** Un seul slug, persiste across sessions, change uniquement quand l'utilisateur le décide. Pas de magie cwd. |
+| 3 | `~/.automem-plugin/project_map.json` (lookup par cwd + self-healing hash remote) | Mécanisme avancé : différents slugs selon le repo. Pour quand tu travailles sur plusieurs projets git en parallèle et veux que chacun ait son propre scope. |
+| 4 | Walk-up cwd (max 6 niveaux) pour markers | `.automem-project` > `.git` (slug owner-repo) > `automem.md` > `CLAUDE.md` > `AGENTS.md`. Auto-détection pour les sessions CLI lancées dans un projet. |
+| 5 | `~/.automem-plugin/default-context.txt` (back-compat aussi `cowork-default-project.txt`) | Slug "par défaut" pour les cas où rien d'autre ne s'applique. Sinon littéral `default`. |
 
-Validé sur 7 scénarios de test en sandbox (cf. session du 26 mai 2026). Le Cowork bucket `cowork-default` est un compromis : il évite la fragmentation tout en restant identifiable. Pour avoir un vrai scope projet depuis Cowork, l'utilisateur a 3 options :
-1. Exporter `AUTOMEM_PROJECT_ID=<slug>` dans son shell avant de lancer Cowork
-2. Écrire le slug dans `~/.automem-plugin/cowork-default-project.txt`
-3. Attendre Phase 7 → skill `/automem:switch-project <slug>` (override per-cwd dans project_map.json)
+### Pourquoi v0.1.6 → v0.1.7 a simplifié ?
+
+En v0.1.6, `/automem:switch-project` écrivait dans `project_map.json` un mapping `cwd → slug`. Problème observé en usage réel : depuis Cowork, le cwd est `local_<UUID-volatile>/outputs/` — un sous-dossier dont l'UUID change à chaque session. Donc le mapping ne survivait pas à la prochaine session.
+
+Au-delà du bug, le design lui-même était trop subtil pour l'intention courante de l'utilisateur. Quand on tape `/automem:switch-project coaching-2026`, on veut dire « pour tout ce qui suit, le scope est coaching-2026 ». Pas « pour ce répertoire-ci, le scope est coaching-2026 ».
+
+v0.1.7 ajoute donc `active-project.txt` (priorité 2 dans la cascade) comme override **global** : un fichier, une ligne, un slug. `/automem:switch-project` écrit là. `project_map.json` reste disponible (priorité 3) pour le cas d'usage avancé où tu veux vraiment binder par cwd.
 
 ---
 

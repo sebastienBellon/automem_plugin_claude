@@ -72,12 +72,13 @@ Le manifest expose deux `userConfig` optionnels (`rest_base_url`, `rest_auth_hea
 
 ### Scoping (tags `project:` et `domain:`)
 
-Toutes les mémoires sont scopées par tag `project:<slug>`. Le slug est résolu dans l'ordre :
+Toutes les mémoires sont scopées par tag `project:<slug>`. Le slug est résolu dans l'ordre (premier non-vide gagne) :
 
-1. Variable d'environnement `AUTOMEM_PROJECT_ID`
-2. Lookup `~/.automem-plugin/project_map.json` (`cwd → project_id`)
-3. Walk-up depuis le `cwd` cherchant `.automem-project`, `.git`, `automem.md`, `CLAUDE.md`, `AGENTS.md`
-4. Fallback : `default` (slug neutre — pas un nom de repo, pas un dossier scratchpad)
+1. Variable d'environnement `AUTOMEM_PROJECT_ID` (ephemeral, per-shell)
+2. **`~/.automem-plugin/active-project.txt`** — slug actif global, écrit par `/automem:switch-project`. Le mécanisme principal côté utilisateur : un slug, persiste across sessions, change à la demande.
+3. `~/.automem-plugin/project_map.json` (mécanisme avancé : binding par cwd, utile si tu veux différents slugs pour différents repos git)
+4. Walk-up depuis le `cwd` cherchant `.automem-project`, `.git`, `automem.md`, `CLAUDE.md`, `AGENTS.md`
+5. Fallback : contenu de `~/.automem-plugin/default-context.txt` si présent, sinon littéral `default`
 
 Convention optionnelle `domain:<X>` pour filtrer par catégorie : `code`, `personal`, `coaching`, `planning`, `learning` (liste extensible). Détails dans [`PORTAGE-PLAN.md`](./PORTAGE-PLAN.md) §3.
 
@@ -86,7 +87,9 @@ Convention optionnelle `domain:<X>` pour filtrer par catégorie : `code`, `perso
 Le plugin écrit dans `~/.automem-plugin/` :
 
 - `settings.json` — auto_save, auto_recall, recall_limit, retention_session_days, etc. (éditable)
-- `project_map.json` — overrides explicites `cwd → project_id` (édité par `/automem:switch-project` quand livré)
+- `active-project.txt` — slug du projet actif, géré par `/automem:switch-project` (priorité 2 dans la cascade)
+- `default-context.txt` — fallback de dernier recours pour le slug (priorité 5)
+- `project_map.json` — overrides avancés `cwd → project_id` (priorité 3, optionnel)
 - `state/` — session id, stats, rubric flags, recent reads (interne au plugin)
 - `hooks.log` — logs des hooks quand `AUTOMEM_DEBUG=true`
 

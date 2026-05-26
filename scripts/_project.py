@@ -6,15 +6,28 @@ a journaling thread, a brainstorming track…). The implementation supports
 both transparently.
 
 Resolution priority (project_id) — order matters, first non-empty wins:
-  1. AUTOMEM_PROJECT_ID env var (explicit override)
-  2. ~/.automem-plugin/project_map.json lookup by cwd
-  2b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing)
-  3. Walk-up from cwd looking for a project marker:
+  1. AUTOMEM_PROJECT_ID env var (explicit override, ephemeral per shell)
+  2. ~/.automem-plugin/active-project.txt (set by /automem:switch-project)
+     — the simple, intentional, global active slug. NEW in v0.1.7.
+  3. ~/.automem-plugin/project_map.json lookup by cwd
+  3b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing)
+  4. Walk-up from cwd looking for a project marker:
      .automem-project (explicit), .git (git slug), automem.md, CLAUDE.md, AGENTS.md
-  4. Default context (FINAL fallback in v0.1.2 onwards):
+  5. Default context (FINAL fallback):
      Read ~/.automem-plugin/default-context.txt content (or the legacy
      ~/.automem-plugin/cowork-default-project.txt for v0.1.1 back-compat).
      If neither exists or both are empty, return the literal slug "default".
+
+Changes in v0.1.7 vs v0.1.6:
+- Introduced ``active-project.txt`` as priority 2. This is the simple
+  "current active slug" set by ``/automem:switch-project``. No cwd binding,
+  no walk-up logic, no project_map lookup — just a single file containing
+  the slug. Persists across sessions until ``/automem:switch-project reset``
+  removes it. project_map.json remains as an advanced mechanism (priority 3)
+  for users who really want per-cwd binding (e.g. team-shared repos).
+- The earlier v0.1.6 ``switch-project`` skill that wrote to project_map.json
+  was over-engineered for the typical "I want this slug to apply to my
+  current focus" intent.
 
 Changes in v0.1.2 vs v0.1.1:
 - ``cowork-default`` slug renamed to ``default`` (more neutral — the bucket
@@ -27,7 +40,7 @@ Changes in v0.1.2 vs v0.1.1:
   Everything that doesn't match a project marker now consolidates into
   ``default`` (overridable via env var, project_map, or marker file).
 
-Rationale documented in PORTAGE-PLAN.md §3 (revised 26 May 2026).
+Rationale documented in PORTAGE-PLAN.md §3.
 """
 
 from __future__ import annotations
@@ -39,8 +52,13 @@ import re
 import subprocess
 
 MAP_PATH = os.path.expanduser("~/.automem-plugin/project_map.json")
+# Active project override (set by /automem:switch-project). When this file
+# exists and is non-empty, its content is used as the project slug — this
+# takes priority over everything except the AUTOMEM_PROJECT_ID env var.
+# Single source of truth, no cwd binding, persists across sessions.
+ACTIVE_PROJECT_FILE = os.path.expanduser("~/.automem-plugin/active-project.txt")
 # Default context file (was cowork-default-project.txt in v0.1.1 — kept as
-# fallback for backward compatibility)
+# fallback for backward compatibility). Used in final-fallback step only.
 DEFAULT_CONTEXT_FILE = os.path.expanduser("~/.automem-plugin/default-context.txt")
 LEGACY_COWORK_DEFAULT_FILE = os.path.expanduser("~/.automem-plugin/cowork-default-project.txt")
 # Default scope used when no project marker is found (was "cowork-default" in
@@ -63,38 +81,64 @@ def resolve_project_id(cwd: str | None = None) -> str:
     if cwd is None:
         cwd = os.getcwd()
 
-    # 1. Explicit override
+    # 1. Explicit override (env var, ephemeral per shell)
     explicit = os.environ.get("AUTOMEM_PROJECT_ID", "").strip()
     if explicit:
         return explicit
 
-    # 2. project_map.json lookup (cwd + remote hash self-healing)
+    # 2. Active project file (set by /automem:switch-project)
+    # This is the "I'm focused on X right now" override. Single line, no cwd
+    # binding, persists across sessions until /automem:switch-project reset
+    # removes it. Simplest and most predictable user-facing mechanism.
+    active = _read_active_project()
+    if active:
+        return active
+
+    # 3. project_map.json lookup (cwd + remote hash self-healing).
+    # Advanced mechanism for per-cwd binding (team-shared repos, etc.).
     mapped = _lookup_project_map(cwd)
     if mapped:
         return mapped
 
-    # 3. Walk-up for project markers
+    # 4. Walk-up for project markers
     walked = _walk_up_for_project(cwd, max_levels=6)
     if walked:
         return walked
 
-    # 4. Cowork scratchpad detection (or any context without a project marker)
-    # — read the configured default context (file), else fall through to the
-    # generic DEFAULT_SLUG. Note: in v0.1.1 this step only fired for Cowork
-    # paths; in v0.1.2 we make 'default' the final fallback for ANY path
-    # without a project marker (eliminates the basename(cwd) fallback which
-    # produced isolated buckets like 'notes' from ~/Documents/notes/).
-    default_name = _read_default_context()
-    if _is_cowork_scratchpad(cwd):
-        return default_name
+    # 5. Final fallback: default-context.txt content, else literal "default"
+    return _read_default_context()
 
-    # 5. Final fallback: default scope (was basename(cwd) in v0.1.1)
-    # Rationale: returning basename(cwd) when nothing matches creates
-    # accidental isolated buckets (e.g. 'notes', 'tmp', 'untitled') that
-    # fragment the OS memory layer. The 'default' scope keeps everything
-    # discoverable while still being overridable via AUTOMEM_PROJECT_ID,
-    # ~/.automem-plugin/project_map.json, or a .automem-project marker file.
-    return default_name
+
+def _read_active_project() -> str:
+    """Return the active project slug from ~/.automem-plugin/active-project.txt
+    if present and non-empty. Returns empty string otherwise. Trims whitespace
+    and a possible leading 'project:' prefix (in case the user typed the full
+    tag form by habit).
+    """
+    if not os.path.isfile(ACTIVE_PROJECT_FILE):
+        return ""
+    try:
+        with open(ACTIVE_PROJECT_FILE) as f:
+            name = f.read().strip()
+        if name.startswith("project:"):
+            name = name[len("project:"):].strip()
+        return name
+    except OSError:
+        return ""
+
+
+def write_active_project(slug: str) -> None:
+    """Set the active project slug. Empty/None deletes the override."""
+    os.makedirs(os.path.dirname(ACTIVE_PROJECT_FILE), exist_ok=True)
+    slug = (slug or "").strip()
+    if slug.startswith("project:"):
+        slug = slug[len("project:"):].strip()
+    if slug:
+        with open(ACTIVE_PROJECT_FILE, "w") as f:
+            f.write(slug + "\n")
+    else:
+        if os.path.isfile(ACTIVE_PROJECT_FILE):
+            os.remove(ACTIVE_PROJECT_FILE)
 
 
 def _read_default_context() -> str:
