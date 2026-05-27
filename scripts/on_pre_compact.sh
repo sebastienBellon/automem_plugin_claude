@@ -32,6 +32,31 @@ if [ -z "${AUTOMEM_PROJECT_ID:-}" ]; then
   . "$SCRIPT_DIR/_identity.sh" 2>>"$HOME/.automem-plugin/hooks.log" || true
 fi
 PROJECT="${AUTOMEM_PROJECT_ID:-default}"
+ALIAS="${AUTOMEM_PROJECT_ALIAS:-}"
+
+# Period tags (v0.4.0) — same auto-injection logic as on_stop.sh. See that
+# file for the rationale. Used to make temporal recall ("yesterday", "this
+# week") cheap without requiring a dedicated skill.
+PERIOD_DAY="$(date +%Y-%m-%d 2>/dev/null || echo '')"
+PERIOD_WEEK="$(date +%G-W%V 2>/dev/null || echo '')"
+
+# Dual-tag fragment for the rubric template — see on_stop.sh for rationale.
+if [ -n "$ALIAS" ] && [ "$ALIAS" != "$PROJECT" ]; then
+  PROJECT_TAGS_FRAGMENT="\"project:$PROJECT\", \"project:$ALIAS\""
+  ALIAS_NOTE="
+> The current context has an alias configured (\`$ALIAS\`). Every \`store_memory\` call below MUST include BOTH \`project:$PROJECT\` AND \`project:$ALIAS\` in tags (v0.4.0 dual-tag mechanism)."
+else
+  PROJECT_TAGS_FRAGMENT="\"project:$PROJECT\""
+  ALIAS_NOTE=""
+fi
+
+if [ -n "$PERIOD_DAY" ] && [ -n "$PERIOD_WEEK" ]; then
+  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\", \"period:$PERIOD_WEEK\""
+elif [ -n "$PERIOD_DAY" ]; then
+  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\""
+else
+  PERIOD_TAGS_FRAGMENT=""
+fi
 
 cat <<EOF
 ## Pre-Compaction: Persist durable facts NOW
@@ -72,11 +97,13 @@ Categories and concrete triggers:
 store_memory(
   content="<one fact, 15-50 words, third person, include file paths or IDs>",
   type="<Decision | Pattern | Style | Preference | Insight | Habit>",
-  tags=["project:$PROJECT", "domain:<X>", "<optional kind: tag>"],
+  tags=[$PROJECT_TAGS_FRAGMENT, "domain:<X>"$PERIOD_TAGS_FRAGMENT, "<optional kind: tag>"],
   importance=0.8,    # pre-compact facts are above-baseline by definition
   confidence=0.8,
 )
-\`\`\`
+\`\`\`$ALIAS_NOTE
+
+**Note on \`period:\` tags** (v0.4.0): the \`period:$PERIOD_DAY\` / \`period:$PERIOD_WEEK\` tags are auto-injected so temporal queries ("what did I do yesterday/last week") can recall by tag. Keep them as shown — deterministic metadata.
 
 ### Optional: tie new facts to the existing graph
 

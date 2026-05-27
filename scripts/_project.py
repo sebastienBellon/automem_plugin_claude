@@ -20,6 +20,21 @@ Resolution priority (project_id) — order matters, first non-empty wins:
      ~/.automem-plugin/cowork-default-project.txt for v0.1.1 back-compat).
      If neither exists or both are empty, return the literal slug "default".
 
+Changes in v0.4.0 vs v0.3.x:
+- ``project_map.json`` entries can now be either a string (legacy format,
+  still supported) OR an object ``{"slug": "...", "alias": "..."}``. The
+  ``alias`` field is a human-friendly secondary slug that gets dual-tagged
+  alongside the machine-derived slug at store time — solving the historical
+  fragmentation between owner-repo slugs (auto-derived by the hook from
+  ``git remote``) and the human slugs users had been writing manually in
+  conversation tools (Claude.ai chat, Cowork). A recall on either tag now
+  finds the memory.
+- New helper ``resolve_alias(cwd)`` returns the optional alias for the
+  current context (empty string when no alias is configured).
+- New helper ``save_alias(cwd, alias)`` upgrades a legacy string entry to
+  the object form by adding an alias, or creates a fresh object entry.
+  Used by ``/automem:switch-project --alias <name>``.
+
 Changes in v0.1.7 vs v0.1.6:
 - Introduced ``active-project.txt`` as priority 2. This is the simple
   "current active slug" set by ``/automem:switch-project``. No cwd binding,
@@ -167,24 +182,56 @@ def _read_default_context() -> str:
     return DEFAULT_SLUG
 
 
+def _entry_slug(entry) -> str:
+    """Extract the slug field from a project_map.json entry.
+
+    Accepts both formats:
+      - legacy string:  "owner-repo"
+      - v0.4.0 object:  {"slug": "owner-repo", "alias": "human-name"}
+
+    Returns the trimmed slug, or empty string if invalid.
+    """
+    if isinstance(entry, str):
+        return entry.strip()
+    if isinstance(entry, dict):
+        return str(entry.get("slug", "")).strip()
+    return ""
+
+
+def _entry_alias(entry) -> str:
+    """Extract the alias field from a project_map.json entry.
+
+    Returns empty string for legacy string entries or entries without alias.
+    """
+    if isinstance(entry, dict):
+        return str(entry.get("alias", "")).strip()
+    return ""
+
+
 def _lookup_project_map(cwd: str) -> str:
     """Check project_map.json for an explicit cwd → project mapping,
     with self-healing remote-hash fallback. Returns empty string on miss.
+
+    Accepts both legacy string entries and v0.4.0 object entries
+    (``{slug, alias}``) — see ``_entry_slug`` / ``_entry_alias``.
     """
     if not os.path.isfile(MAP_PATH):
         return ""
     try:
         with open(MAP_PATH) as f:
             project_map = json.load(f)
-        mapped = project_map.get(cwd, "").strip()
+        mapped = _entry_slug(project_map.get(cwd))
         if mapped:
             return mapped
         remote_key = _remote_hash_key(cwd)
         if remote_key:
-            mapped = project_map.get(remote_key, "").strip()
+            mapped_entry = project_map.get(remote_key)
+            mapped = _entry_slug(mapped_entry)
             if mapped:
-                # Self-heal: write the cwd → project mapping for next time
-                project_map[cwd] = mapped
+                # Self-heal: copy the remote-keyed entry under cwd for next
+                # time. Preserve the object form when applicable so the alias
+                # doesn't get stripped during the self-heal.
+                project_map[cwd] = mapped_entry if isinstance(mapped_entry, dict) else mapped
                 try:
                     with open(MAP_PATH, "w") as f:
                         json.dump(project_map, f, indent=2)
@@ -194,6 +241,92 @@ def _lookup_project_map(cwd: str) -> str:
     except (OSError, json.JSONDecodeError, AttributeError):
         pass
     return ""
+
+
+def resolve_alias(cwd: str | None = None) -> str:
+    """Resolve the optional human-friendly alias for the current context.
+
+    Returns the alias from project_map.json (looked up by cwd, then by
+    remote-hash key). Returns empty string when no alias is configured —
+    legacy string entries always yield empty string.
+
+    The alias is used by hooks to dual-tag stores: ``project:<machine-slug>``
+    alongside ``project:<alias>``. Either tag will match a recall.
+    """
+    if cwd is None:
+        cwd = os.getcwd()
+    if not os.path.isfile(MAP_PATH):
+        return ""
+    try:
+        with open(MAP_PATH) as f:
+            project_map = json.load(f)
+        alias = _entry_alias(project_map.get(cwd))
+        if alias:
+            return alias
+        remote_key = _remote_hash_key(cwd)
+        if remote_key:
+            alias = _entry_alias(project_map.get(remote_key))
+            if alias:
+                return alias
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+    return ""
+
+
+def save_alias(cwd: str, alias: str) -> None:
+    """Write an alias into project_map.json for the current cwd (and the
+    remote-hash key when available).
+
+    If the existing entry is a legacy string, it is upgraded to the v0.4.0
+    object form ``{"slug": <existing>, "alias": <new>}``. If no entry
+    exists yet, one is created by first resolving the slug via the normal
+    cascade (so the user doesn't have to know what owner-repo Git produced).
+
+    Passing an empty alias string removes the alias field but keeps the
+    slug intact (also collapses object → string when the alias was the
+    only object-specific field).
+    """
+    mem_dir = os.path.dirname(MAP_PATH)
+    os.makedirs(mem_dir, exist_ok=True)
+    alias = (alias or "").strip()
+    if alias.startswith("project:"):
+        alias = alias[len("project:"):].strip()
+
+    project_map: dict = {}
+    if os.path.isfile(MAP_PATH):
+        try:
+            with open(MAP_PATH) as f:
+                project_map = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            project_map = {}
+
+    # Figure out the slug currently associated with this cwd. Order:
+    #   1. Existing entry under cwd
+    #   2. Existing entry under remote-hash key
+    #   3. Run the resolution cascade (will walk up to .git, etc.)
+    remote_key = _remote_hash_key(cwd)
+    existing_slug = _entry_slug(project_map.get(cwd))
+    if not existing_slug and remote_key:
+        existing_slug = _entry_slug(project_map.get(remote_key))
+    if not existing_slug:
+        # Resolve via cascade; skip the project_map lookup step itself to
+        # avoid recursion into a possibly-stale entry by temporarily
+        # bypassing this lookup. The simplest way is to fall through to
+        # walk-up.
+        existing_slug = _walk_up_for_project(cwd, max_levels=6) or DEFAULT_SLUG
+
+    if alias:
+        new_entry = {"slug": existing_slug, "alias": alias}
+    else:
+        # Empty alias → collapse to plain string (legacy form)
+        new_entry = existing_slug
+
+    project_map[cwd] = new_entry
+    if remote_key:
+        project_map[remote_key] = new_entry
+
+    with open(MAP_PATH, "w") as f:
+        json.dump(project_map, f, indent=2)
 
 
 def _walk_up_for_project(cwd: str, max_levels: int = 6) -> str:
@@ -297,20 +430,35 @@ def resolve_branch(cwd: str | None = None) -> str:
 
 
 def save_project_mapping(cwd: str, project_id: str) -> None:
-    """Write cwd -> project_id (and remote-hash -> project_id) into project_map.json."""
+    """Write cwd -> project_id (and remote-hash -> project_id) into project_map.json.
+
+    If an existing entry has an alias (v0.4.0 object form), the alias is
+    preserved when the slug is updated — only the slug field is rewritten.
+    Use ``save_alias`` to manipulate the alias field independently.
+    """
     mem_dir = os.path.dirname(MAP_PATH)
     os.makedirs(mem_dir, exist_ok=True)
-    project_map: dict[str, str] = {}
+    project_map: dict = {}
     if os.path.isfile(MAP_PATH):
         try:
             with open(MAP_PATH) as f:
                 project_map = json.load(f)
         except (OSError, json.JSONDecodeError):
             project_map = {}
-    project_map[cwd] = project_id
+
+    def _upgrade(key: str, slug: str) -> None:
+        existing = project_map.get(key)
+        if isinstance(existing, dict) and existing.get("alias"):
+            existing["slug"] = slug
+            project_map[key] = existing
+        else:
+            project_map[key] = slug
+
+    _upgrade(cwd, project_id)
     remote_key = _remote_hash_key(cwd)
     if remote_key:
-        project_map[remote_key] = project_id
+        _upgrade(remote_key, project_id)
+
     with open(MAP_PATH, "w") as f:
         json.dump(project_map, f, indent=2)
 
@@ -366,4 +514,5 @@ if __name__ == "__main__":
     print(json.dumps({
         "project_id": resolve_project_id(cwd_arg),
         "branch": resolve_branch(cwd_arg),
+        "alias": resolve_alias(cwd_arg),
     }))

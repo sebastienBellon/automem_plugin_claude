@@ -34,6 +34,40 @@ if [ -z "${AUTOMEM_PROJECT_ID:-}" ]; then
 fi
 
 PROJECT="${AUTOMEM_PROJECT_ID:-unknown}"
+ALIAS="${AUTOMEM_PROJECT_ALIAS:-}"
+
+# Period tags (v0.4.0): auto-injected at every store to enable cheap temporal
+# recall ("yesterday", "this week", "last month") without requiring any new
+# skill. YYYY-MM-DD is deterministic and ISO; YYYY-Www uses ISO week numbers
+# (%G is the ISO week-based year, %V is the ISO week, both work on GNU and
+# BSD date — verified on macOS Sonoma). Falls back to empty string if the
+# date command misbehaves; the rubric below handles missing values.
+PERIOD_DAY="$(date +%Y-%m-%d 2>/dev/null || echo '')"
+PERIOD_WEEK="$(date +%G-W%V 2>/dev/null || echo '')"
+
+# Build the project tag fragment for the rubric template. When an alias is
+# configured in project_map.json (v0.4.0+), we dual-tag every store with
+# both the machine slug (auto-derived from git remote: owner-repo) and the
+# human-friendly alias (e.g. "whisperit" vs "whisperithq-monorepo"). Recall
+# on either tag finds the memory, solving the historical fragmentation
+# between hook-generated slugs and chat/Cowork conventions.
+if [ -n "$ALIAS" ] && [ "$ALIAS" != "$PROJECT" ]; then
+  PROJECT_TAGS_FRAGMENT="\"project:$PROJECT\", \"project:$ALIAS\""
+  ALIAS_NOTE="
+> The current context has an alias configured (\`$ALIAS\`). Every \`store_memory\` call this turn MUST include BOTH \`project:$PROJECT\` AND \`project:$ALIAS\` in tags — this dual-tag is the v0.4.0 mechanism that reconciles auto-derived machine slugs with the human slugs used in Claude.ai chat / Cowork conventions. Recall by either tag will find the memory."
+else
+  PROJECT_TAGS_FRAGMENT="\"project:$PROJECT\""
+  ALIAS_NOTE=""
+fi
+
+# Build the period tag fragment. Always included when the date command works.
+if [ -n "$PERIOD_DAY" ] && [ -n "$PERIOD_WEEK" ]; then
+  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\", \"period:$PERIOD_WEEK\""
+elif [ -n "$PERIOD_DAY" ]; then
+  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\""
+else
+  PERIOD_TAGS_FRAGMENT=""
+fi
 
 cat <<EOF
 **End-of-turn memory ops — agent-driven, silent by default, compact notification at the end.**
@@ -66,11 +100,13 @@ Did this turn produce anything that a future agent would want to know?
 store_memory(
   content="<one fact, 15-50 words, third person, include file paths / IDs>",
   type="<Decision | Pattern | Style | Preference | Insight | Habit | Context>",
-  tags=["project:$PROJECT", "domain:<code|personal|coaching|planning|learning>", "<optional kind:tag>"],
+  tags=[$PROJECT_TAGS_FRAGMENT, "domain:<code|personal|coaching|planning|learning>"$PERIOD_TAGS_FRAGMENT, "<optional kind:tag>"],
   importance=0.7,   # 0.9 if structural; 1.0 only if user explicitly asked
   confidence=0.7,   # 1.0 only if user explicitly stated it as fact
 )
-\`\`\`
+\`\`\`$ALIAS_NOTE
+
+**Note on \`period:\` tags** (v0.4.0): the two \`period:$PERIOD_DAY\` / \`period:$PERIOD_WEEK\` tags above are auto-injected so future temporal queries ("what did I do yesterday", "last week") can recall by tag without needing any new skill. Keep them in your \`tags\` array exactly as shown — they are deterministic metadata, not categorisation.
 
 Type cheat sheet: \`Decision\` (choices, trade-offs), \`Pattern\` (recurring positive patterns observed), \`Style\` (code conventions), \`Preference\` (user prefs), \`Insight\` (task learning, bug-fix root cause with tag \`kind:bug-fix\`, anti-pattern with tag \`kind:anti-pattern\`), \`Habit\` (workflows), \`Context\` (environmental / ephemeral).
 

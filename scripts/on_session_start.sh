@@ -20,9 +20,22 @@ SOURCE=$(echo "$INPUT" | jq -r '.source // "startup"' 2>/dev/null || echo "start
 AUTOMEM_CWD=$(echo "$INPUT" | jq -r '.cwd // "."' 2>/dev/null || echo ".")
 export AUTOMEM_CWD
 
-# Source identity (sets AUTOMEM_PROJECT_ID, AUTOMEM_BRANCH, settings, REST creds)
+# Source identity (sets AUTOMEM_PROJECT_ID, AUTOMEM_PROJECT_ALIAS,
+# AUTOMEM_BRANCH, settings, REST creds)
 # shellcheck source=_identity.sh
 . "$SCRIPT_DIR/_identity.sh"
+
+# v0.4.0 dual-tag awareness: build a friendly project descriptor including
+# the alias when configured (e.g. "whisperithq-monorepo (alias: whisperit)").
+# Used in the banner and the scope-policy rubric so Claude knows to dual-tag.
+if [ -n "${AUTOMEM_PROJECT_ALIAS:-}" ] && [ "$AUTOMEM_PROJECT_ALIAS" != "$AUTOMEM_PROJECT_ID" ]; then
+  _PROJECT_DESCRIPTOR="$AUTOMEM_PROJECT_ID (alias: $AUTOMEM_PROJECT_ALIAS)"
+  _ALIAS_RUBRIC_LINE="
+- **DUAL-TAG (v0.4.0)**: this context has an alias configured. Every \`store_memory\` MUST include BOTH \`project:$AUTOMEM_PROJECT_ID\` AND \`project:$AUTOMEM_PROJECT_ALIAS\` in tags. This is how the OS memory layer reconciles auto-derived owner-repo slugs with the human slugs you use in Claude.ai chat / Cowork. Recall on either tag finds the memory."
+else
+  _PROJECT_DESCRIPTOR="$AUTOMEM_PROJECT_ID"
+  _ALIAS_RUBRIC_LINE=""
+fi
 
 # Reset session stats on startup; preserve on resume/compact
 if [ "$SOURCE" = "startup" ]; then
@@ -66,8 +79,9 @@ AutoMem Active | project=$AUTOMEM_PROJECT_ID | branch=$AUTOMEM_BRANCH
 **Scope policy (tags)** — \`store_memory\` and \`recall_memory\` are NOT symmetric:
 
 *For every \`store_memory\` call* (mandatory — the tag scopes the write):
-- Always include tag: \`project:$AUTOMEM_PROJECT_ID\` (the slug is a "context", not necessarily a code repo — can be a coaching engagement, a life theme, a journaling thread, anything)
+- Always include tag: \`project:$AUTOMEM_PROJECT_ID\` (the slug is a "context", not necessarily a code repo — can be a coaching engagement, a life theme, a journaling thread, anything)$_ALIAS_RUBRIC_LINE
 - Optionally add a \`domain:<X>\` tag when the context type matters for filtering — recommended values: \`code\`, \`personal\`, \`coaching\`, \`planning\`, \`learning\`. Use whatever fits the conversation; the list is a convention, not a hard enum.
+- **Auto-injected \`period:\` tags** (v0.4.0): the on_stop / on_pre_compact rubrics will give you the exact \`period:YYYY-MM-DD\` and \`period:YYYY-Www\` values to include in every store. They enable cheap temporal recall ("yesterday", "this week") without a dedicated skill — keep them in the tags array as shown in those rubrics.
 - For ephemeral memories (type \`Context\` with kind:session-state or kind:compact-summary), also add: \`session:$AUTOMEM_SESSION_ID\` and \`ephemeral:true\`
 - Do NOT add \`user:\` or \`branch:\` tags by default — put branch context in \`content\` if critical.
 
