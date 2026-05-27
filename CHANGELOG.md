@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.4.1 — 2026-05-27 — Document `time_query` server quirk
+
+**Theme.** Documentation-only release that captures an empirically validated
+quirk of AutoMem's server-side `time_query` natural-language parser: it
+handles `"today"` correctly but silently ignores `"yesterday"`, `"last 24 hours"`,
+and presumably other variants — the temporal filter disappears and the call
+becomes a pure semantic search, returning out-of-window results ranked by score.
+
+The fix routes around the quirk inside the skills that perform recall, so
+agent and user behaviour produces correct temporal filtering by default.
+
+### Changed
+
+- **`skills/recall/SKILL.md`** — `--time-window` flag reworked to refuse raw
+  natural-language values; instead accepts `today` (the only working NL value),
+  `YYYY-MM-DD` (exact date, expanded to `start`/`end`), `YYYY-MM-DD:YYYY-MM-DD`
+  (date range), `YYYY-MM` (whole month, expanded to `period:` prefix match),
+  and `YYYY-Www` (ISO week). A new "Temporal queries — server quirk to know"
+  section documents the three temporal cases (today / past specific date /
+  multi-day range) with concrete recall_memory snippets for each.
+- **`skills/context-loader/SKILL.md`** — new edge case "Topic with a temporal
+  qualifier" instructs the skill never to pass `time_query="<NL>"` for past
+  periods; routes to `start`/`end` ISO or `period:` tag prefix matching
+  instead. References the `/automem:recall` skill for the full routing.
+
+### Why not fix upstream
+
+The quirk lives in AutoMem's server-side recall_memory implementation
+(FalkorDB+Qdrant adapter). Fixing it there is out of scope for this plugin
+release — the plugin can only route around it. The documentation captured
+here also serves as a discoverable record if/when the server is patched
+later.
+
+### Validation
+
+Empirical tests run in a live conversation on 27 May 2026:
+- `time_query="today"` → 9 in-window results (correct).
+- `time_query="yesterday"` → 10 out-of-window results, scoring purely semantic (broken).
+- `start="2026-05-26T00:00:00Z"` + `end="2026-05-26T23:59:59Z"` → 2 in-window
+  results (correct, confirms DB has yesterday's data — the quirk is in the
+  parser, not absence of data).
+- `tags=["period:2026-05-27"]` exact match → 1 result, the only memory carrying
+  that tag (correct, dual-tag mechanism functional).
+
+Memory `1724ca5b-5d86-4b08-8c5f-6b14d39d1476` captures the empirical finding.
+
+---
+
 ## v0.4.0 — 2026-05-27 — Non-destructive recall affordances
 
 **Theme.** Address the namespace fragmentation discovered between

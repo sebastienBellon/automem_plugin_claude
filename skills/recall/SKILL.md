@@ -88,12 +88,54 @@ to browse all memories by type.
 ## Flags
 
 - `--expand` → `expand_relations=true` in call #1, follow graph edges (slower but richer)
-- `--time-window=<period>` → add `time_query=<period>` (e.g. "last week", "today", "this month")
+- `--time-window=<value>` → add a temporal filter. Three accepted forms; see "Temporal queries" section below for the why:
+  - `--time-window=today` → `time_query="today"` (server-side filter, only NL value that reliably works)
+  - `--time-window=<YYYY-MM-DD>` → exact date, expanded to `start=<date>T00:00:00Z` + `end=<date>T23:59:59Z`
+  - `--time-window=<YYYY-MM-DD>:<YYYY-MM-DD>` → date range, expanded to `start` + `end`
+  - `--time-window=<YYYY-MM>` → whole month, expanded to `tags=["period:<YYYY-MM>"]` with `tag_match="prefix"`
+  - `--time-window=<YYYY-Www>` → ISO week, expanded to `tags=["period:<YYYY-Www>"]` with `tag_match="prefix"`
+  - **DO NOT** accept raw `yesterday`, `last week`, `this month`, etc. — silently broken server-side (see below). If the user passes one of these, translate to a concrete date range first, then use one of the forms above.
 - `--type=<Type>` → restrict to a single AutoMem type (overrides Step 2 call #2)
 - `--domain=<X>` → restrict to a single domain by adding `"domain:<X>"` to the `tags` list (e.g. `--domain=coaching` to search only coaching memories within the active project)
 - `--limit=<N>` → override default 10 (max 50 per AutoMem limit)
 - `--global` → drop the `project:<X>` tag filter and search across all projects (use sparingly — pollutes results)
 - `--format=detailed` → switch to `format="detailed"` per-call to see timestamps, importance, full tags
+
+## Temporal queries — server quirk to know
+
+Empirically validated on 27 May 2026: AutoMem's `time_query` natural-language parser handles `"today"` correctly (filters by server timestamp), but **silently ignores `"yesterday"`, `"last 24 hours"`, and presumably most other variants** — the filter disappears and the call becomes a pure semantic search, returning out-of-window results ranked by score. Symptoms: high-score results that don't match the requested period, no visible error.
+
+Therefore, in this skill (and any agent-driven recall flow), apply this routing:
+
+**Case A — "today"** (the current calendar day from the user's perspective):
+```
+recall_memory(query=<query>, tags=["period:YYYY-MM-DD"])     # v0.4.0+ memories
+# or
+recall_memory(query=<query>, time_query="today")             # rétro-compat / legacy memories
+```
+Both work. Prefer the first when you know the user's window is recent enough that all relevant memories carry the period: tag.
+
+**Case B — past specific date** (yesterday, last Friday, "le 12 mai", etc.):
+Compute the ISO date client-side first, then use ONE of:
+```
+recall_memory(query=<query>, tags=["period:YYYY-MM-DD"])                       # tag filter — exact, v0.4.0+
+# or
+recall_memory(query=<query>, start="YYYY-MM-DDT00:00:00Z", end="YYYY-MM-DDT23:59:59Z")   # server timestamp filter — universal
+```
+Use the second form when targeting memories that pre-date v0.4.0 (no period: tag).
+
+**Case C — multi-day range** (this week, last month, etc.):
+```
+recall_memory(query=<query>, tags=["period:YYYY-MM"], tag_match="prefix")      # whole month
+# or
+recall_memory(query=<query>, tags=["period:YYYY-Www"], tag_match="prefix")     # ISO week
+# or
+recall_memory(query=<query>, start="<first-day>T00:00:00Z", end="<last-day>T23:59:59Z")
+```
+
+Always add `sort="time_desc"` when the user wants a chronological view of activity rather than a relevance ranking.
+
+The skill's `--time-window` flag bakes this routing in: when invoked, do NOT pass through the user's raw NL value to `time_query` — translate it first.
 
 ## ⚠ Note: `expand_entities=true` deliberately not exposed
 
