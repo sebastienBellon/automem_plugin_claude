@@ -1,6 +1,6 @@
 {
   "name": "automem",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Persistent memory for Claude Code via AutoMem (self-hosted FalkorDB + Qdrant). Remembers decisions, patterns, and preferences across sessions — with native graph relationships.",
   "author": {
     "name": "Sébastien Bellon"

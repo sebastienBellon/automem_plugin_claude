@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.4.2 — 2026-05-27 — Nuance: `start`/`end` is a SOFT filter, not hard
+
+**Theme.** Documentation correction following a second live test pass that
+revealed `start`/`end` ISO 8601 is not the hard temporal filter v0.4.1 made
+it out to be. It's a soft boost the semantic scorer can override when the
+query is rich, returning out-of-window matches alongside in-window ones.
+
+The only surgical-grade temporal filter on AutoMem is the `period:` tag
+(exact or prefix). v0.4.0 already shipped the correct primitive — this
+release just clarifies the documentation so neither agent nor user expect
+hard filtering from `start`/`end`.
+
+### Changed
+
+- **`skills/recall/SKILL.md`** — "Temporal queries" section reworked from
+  "server quirk" (singular) to "server quirks" (plural). Documents both
+  quirks: `time_query` NL parser partial, and `start`/`end` as a soft
+  boost. Case A / B / C routing now annotated with reliability tiers:
+  Tier 1 (surgical, period: tags, v0.4.0+ memories) vs Tier 2 (soft
+  fallback, start/end ISO, covers legacy but loose under rich queries).
+  Adds a "Why this matters for the OS-layer promise" closing note: the
+  system gets sharper naturally as the memory base accumulates v0.4.0+
+  stores.
+
+### Validation
+
+Test 3 of the live verification run (27 May 2026):
+- Query "qu'est-ce que j'ai fait hier" + `start="2026-05-26T00:00:00Z"` +
+  `end="2026-05-26T23:59:59Z"` → 20 results, many pre-26-May (out of
+  window). Previous run with simple query "activité" + same `start`/`end`
+  → 2 results in-window. Conclusion: filter is soft, semantic scoring
+  wins when query is rich.
+
+Memory `2bab9557-0336-461d-901f-116c7843611f` captures the finding.
+
+---
+
 ## v0.4.1 — 2026-05-27 — Document `time_query` server quirk
 
 **Theme.** Documentation-only release that captures an empirically validated

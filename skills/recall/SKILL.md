@@ -101,41 +101,59 @@ to browse all memories by type.
 - `--global` → drop the `project:<X>` tag filter and search across all projects (use sparingly — pollutes results)
 - `--format=detailed` → switch to `format="detailed"` per-call to see timestamps, importance, full tags
 
-## Temporal queries — server quirk to know
+## Temporal queries — server quirks to know (v0.4.2)
 
-Empirically validated on 27 May 2026: AutoMem's `time_query` natural-language parser handles `"today"` correctly (filters by server timestamp), but **silently ignores `"yesterday"`, `"last 24 hours"`, and presumably most other variants** — the filter disappears and the call becomes a pure semantic search, returning out-of-window results ranked by score. Symptoms: high-score results that don't match the requested period, no visible error.
+Two empirically validated quirks of AutoMem's `recall_memory` to keep in mind. Both verified by live testing on 27 May 2026 — see memories `1724ca5b` and `2bab9557`.
 
-Therefore, in this skill (and any agent-driven recall flow), apply this routing:
+**Quirk 1 — `time_query` natural-language parser is partial.** It handles `"today"` correctly (filters by server timestamp). It **silently ignores `"yesterday"`, `"last 24 hours"`, and presumably most other variants** — the filter disappears and the call becomes a pure semantic search, returning out-of-window results ranked by score. No visible error. Never pass raw NL date values for past windows.
+
+**Quirk 2 — `start`/`end` is a SOFT temporal boost, not a hard filter.** When the query is sémantiquement riche, the scoring model can return high-score matches that fall *outside* the requested window. Same `start`/`end` ISO 8601, two queries: simple "activité" returns 2 in-window results; rich "qu'est-ce que j'ai fait hier" returns 20 results, many pre-date the window. The server respects the filter loosely. So `start`/`end` is useful as a fallback but cannot be relied on for surgical date filtering.
+
+**The ONLY surgical-grade temporal filter is the `period:` tag** (exact for a day, `tag_match="prefix"` for a week/month). It's deterministic, never overridden by scoring. Use it whenever the targeted memories are v0.4.0+ (i.e. carry the auto-injected period: tags).
+
+### Routing — three cases
 
 **Case A — "today"** (the current calendar day from the user's perspective):
 ```
-recall_memory(query=<query>, tags=["period:YYYY-MM-DD"])     # v0.4.0+ memories
+recall_memory(query=<query>, tags=["period:YYYY-MM-DD"])     # v0.4.0+ — surgical
 # or
-recall_memory(query=<query>, time_query="today")             # rétro-compat / legacy memories
+recall_memory(query=<query>, time_query="today")             # rétro-compat — covers legacy too
 ```
-Both work. Prefer the first when you know the user's window is recent enough that all relevant memories carry the period: tag.
+Prefer the first when the user's window is recent enough that relevant memories carry period: tags. Use the second when you suspect important legacy (pre-v0.4.0) matches.
 
 **Case B — past specific date** (yesterday, last Friday, "le 12 mai", etc.):
-Compute the ISO date client-side first, then use ONE of:
+Compute the ISO date client-side, then pick by reliability tier:
+
 ```
-recall_memory(query=<query>, tags=["period:YYYY-MM-DD"])                       # tag filter — exact, v0.4.0+
-# or
-recall_memory(query=<query>, start="YYYY-MM-DDT00:00:00Z", end="YYYY-MM-DDT23:59:59Z")   # server timestamp filter — universal
+# Tier 1 — surgical (v0.4.0+ memories only)
+recall_memory(query=<query>, tags=["period:YYYY-MM-DD"])
+
+# Tier 2 — soft fallback (covers legacy, but the filter is loose under rich queries)
+recall_memory(query=<query>, start="YYYY-MM-DDT00:00:00Z", end="YYYY-MM-DDT23:59:59Z")
 ```
-Use the second form when targeting memories that pre-date v0.4.0 (no period: tag).
+
+For legacy memories (pre-v0.4.0, no period: tag), tier 2 is the best available — but you may need to re-filter the result list client-side by inspecting each memory's timestamp if the query is rich. There's no surgical mechanism for date-precise recall on legacy data.
 
 **Case C — multi-day range** (this week, last month, etc.):
+
 ```
-recall_memory(query=<query>, tags=["period:YYYY-MM"], tag_match="prefix")      # whole month
-# or
-recall_memory(query=<query>, tags=["period:YYYY-Www"], tag_match="prefix")     # ISO week
-# or
+# Tier 1 — surgical (v0.4.0+ memories only)
+recall_memory(query=<query>, tags=["period:YYYY-MM"], tag_match="prefix")    # whole month
+recall_memory(query=<query>, tags=["period:YYYY-Www"], tag_match="prefix")   # ISO week
+
+# Tier 2 — soft fallback (covers legacy)
 recall_memory(query=<query>, start="<first-day>T00:00:00Z", end="<last-day>T23:59:59Z")
 ```
 
+### Sort + practical notes
+
 Always add `sort="time_desc"` when the user wants a chronological view of activity rather than a relevance ranking.
 
-The skill's `--time-window` flag bakes this routing in: when invoked, do NOT pass through the user's raw NL value to `time_query` — translate it first.
+The skill's `--time-window` flag bakes this routing in: when invoked, do NOT pass through the user's raw NL value to `time_query` — translate it first. For windows beyond "today", prefer `period:` tags when possible; document explicitly when falling back to `start`/`end` so the user knows the filter is soft.
+
+### Why this matters for the OS-layer promise
+
+The `period:` tag injection in `on_stop.sh` / `on_pre_compact.sh` (v0.4.0+) is what makes future temporal recall reliable. As the memory base accumulates v0.4.0+ stores, the surgical-grade temporal filtering becomes the default behaviour and the soft `start`/`end` fallback fades into irrelevance. Patience: the system gets sharper over time without further code changes.
 
 ## ⚠ Note: `expand_entities=true` deliberately not exposed
 
