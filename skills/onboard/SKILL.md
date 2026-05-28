@@ -59,10 +59,14 @@ For each file found, ask the user: `Found <filename> (<size> bytes). Import into
 
 If the user says yes (or hits Enter):
 - Read the file content.
+- Build the tag list:
+  - Always: `project:<AUTOMEM_PROJECT_ID>`, `kind:project-profile`, `file:<filename>`.
+  - **Dual-tag (v0.4.3)**: if `AUTOMEM_PROJECT_ALIAS` is set in the SessionStart banner AND different from `AUTOMEM_PROJECT_ID`, also add `project:<AUTOMEM_PROJECT_ALIAS>`.
+  - **Period tags (v0.4.3 — multi-tier)**: also add the four temporal tiers for today's date — `period:YYYY-MM-DD`, `period:YYYY-Www`, `period:YYYY-MM`, `period:YYYY`. Each is deterministic; compute them client-side. They enable temporal recall on imported profiles ("when did I onboard this project").
 - Call `store_memory` with:
   - `content="## Project Profile: <filename>\n\nProject: <AUTOMEM_PROJECT_ID>\n\n<file_content>"` (cap at 50 000 chars)
   - `type="Context"`
-  - `tags=["project:<AUTOMEM_PROJECT_ID>", "kind:project-profile", "file:<filename>"]`
+  - `tags=[<the list built above>]`
   - `importance=0.85`
   - `confidence=1.0`
   - `metadata={"source": "onboard", "file": "<filename>", "size_bytes": <size>}`

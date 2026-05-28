@@ -1,5 +1,85 @@
 # Changelog
 
+## v0.4.3 — 2026-05-28 — Frictionless dual-tag + multi-tier period: + cross-skill coverage
+
+**Theme.** Three bugs surfaced by a real-world audit on 28 May 2026 led to a
+significant rework of the v0.4.0 mechanisms. The common thread: v0.4.0 had
+shipped the right primitive (deterministic alias + period: tags) but in
+ways that either depended on the user maintaining a config file (which
+contradicts the v0.2.1 silent OS-memory-layer principle), or that were
+only honoured by the on_stop / on_pre_compact hook rubric while
+hand-written-by-the-agent stores via `/automem:remember` and
+`/automem:onboard` bypassed the rules and stored without dual-tag /
+without period: tags. Plus an unexpected server behaviour where
+`tag_match="prefix"` does NOT match sub-segments, invalidating the
+v0.4.2 promise that month/week ranges would be queryable via prefix.
+
+### Fixed
+
+- **Bug A — Dual-tag depended on `project_map.json`, a file Sébastien
+  refuses to maintain.** The hook would never emit the alias because no
+  alias was ever configured. Fix: `scripts/_project.py:resolve_alias()`
+  now does **auto-discovery** from the repo's own manifest files
+  (`package.json:name`, `pyproject.toml:[project].name` or
+  `[tool.poetry].name`) — zero user intervention required. The repo
+  declares its canonical name in its manifest, and the hook reads it.
+  `project_map.json` lookup is preserved as a Tier-2 fallback for
+  back-compat with anyone who had explicitly configured it. The
+  discovered alias is compared against the machine slug via slugify;
+  redundant matches (alias slug == machine slug) yield no dual-tag.
+- **Bug B — `/automem:remember` and `/automem:onboard` skills bypassed
+  v0.4.0 mechanics.** They built tag lists manually without consulting
+  `AUTOMEM_PROJECT_ALIAS` and without adding period: tags. Fix: both
+  skills now have explicit "Step 3" instructions to dual-tag when an
+  alias is set and to emit the four period: tiers at every store.
+  Plus a new "Step 3b — Verify after store" safeguard in `/automem:remember`
+  to recall the new memory and confirm tags landed (caught the malformed
+  MCP XML pattern documented in memory `32730ed9`).
+- **Bug C — `tag_match="prefix"` does NOT match sub-segments.** Empirically
+  confirmed 28 May 2026: a filter `tags=["period:2026-05"]` with prefix
+  mode returns 0 results despite memories tagged `period:2026-05-27`.
+  This invalidated the v0.4.2 promise for month/week ranges. Fix: the
+  hooks now emit FOUR period: tiers at every store
+  (`period:YYYY-MM-DD`, `period:YYYY-Www`, `period:YYYY-MM`, `period:YYYY`).
+  Each tier is exact-matchable. Cost: 4 tags vs 2, pure deterministic
+  metadata.
+
+### Changed
+
+- **`scripts/_project.py`** — `resolve_alias()` rewritten with two-tier
+  resolution (auto-discovery first, project_map.json fallback). New
+  helpers `_discover_canonical_name()`, `_resolve_machine_slug()`,
+  `_slugify_for_compare()`, `_read_pyproject_name()` (works with or
+  without `tomllib`).
+- **`scripts/on_stop.sh`** — emits 4 period: tiers; rubric template
+  reflects the multi-tier and explains why prefix matching can't be
+  relied on for ranges.
+- **`scripts/on_pre_compact.sh`** — same multi-tier emission.
+- **`skills/remember/SKILL.md`** — Step 3 reworked with explicit dual-tag
+  + period: multi-tier rules. New Step 3b "Verify after store" recall.
+- **`skills/onboard/SKILL.md`** — project-profile stores now include
+  dual-tag + period: multi-tier.
+- **`skills/recall/SKILL.md`** — "Temporal queries" section grew a
+  Quirk 3 entry documenting the prefix-on-sub-segments brokenness.
+  `--time-window` flag forms updated: month/week/year use EXACT period:
+  match for v0.4.3+ memories, fall back to start/end ISO for legacy.
+  Explicit warning never to pass `tag_match="prefix"` to range queries.
+- **`skills/context-loader/SKILL.md`** — temporal-qualifier edge case
+  updated to forbid `tag_match=prefix` for ranges and route to
+  appropriate exact period: tier instead.
+
+### Validation
+
+- `_project.py` self-tests cover 5 auto-discovery scenarios (package.json
+  with simple name, with @scope/name, pyproject.toml [project], [tool.poetry],
+  no manifest). All pass.
+- `on_stop.sh` hook in isolation emits the expected dual-tag + 4 period:
+  tiers when AUTOMEM_PROJECT_ALIAS is set.
+- Memory `2bab9557` (start/end soft filter) and `32730ed9` (tag-loss
+  anti-pattern) inform the Step 3b verify-after-store safeguard.
+
+---
+
 ## v0.4.2 — 2026-05-27 — Nuance: `start`/`end` is a SOFT filter, not hard
 
 **Theme.** Documentation correction following a second live test pass that

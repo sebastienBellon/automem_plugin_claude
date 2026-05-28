@@ -88,28 +88,32 @@ to browse all memories by type.
 ## Flags
 
 - `--expand` → `expand_relations=true` in call #1, follow graph edges (slower but richer)
-- `--time-window=<value>` → add a temporal filter. Three accepted forms; see "Temporal queries" section below for the why:
+- `--time-window=<value>` → add a temporal filter. Several accepted forms (see "Temporal queries" section below for the why):
   - `--time-window=today` → `time_query="today"` (server-side filter, only NL value that reliably works)
-  - `--time-window=<YYYY-MM-DD>` → exact date, expanded to `start=<date>T00:00:00Z` + `end=<date>T23:59:59Z`
-  - `--time-window=<YYYY-MM-DD>:<YYYY-MM-DD>` → date range, expanded to `start` + `end`
-  - `--time-window=<YYYY-MM>` → whole month, expanded to `tags=["period:<YYYY-MM>"]` with `tag_match="prefix"`
-  - `--time-window=<YYYY-Www>` → ISO week, expanded to `tags=["period:<YYYY-Www>"]` with `tag_match="prefix"`
-  - **DO NOT** accept raw `yesterday`, `last week`, `this month`, etc. — silently broken server-side (see below). If the user passes one of these, translate to a concrete date range first, then use one of the forms above.
+  - `--time-window=<YYYY-MM-DD>` → for v0.4.3+ memories, expand to `tags=["period:<YYYY-MM-DD>"]` (exact match, surgical). For older / legacy memories, fall back to `start=<date>T00:00:00Z` + `end=<date>T23:59:59Z` (soft).
+  - `--time-window=<YYYY-MM-DD>:<YYYY-MM-DD>` → date range, expand to `start` + `end` (soft for legacy; surgical for v0.4.3+ would require per-day enumeration — not worth it).
+  - `--time-window=<YYYY-MM>` → whole month — for v0.4.3+ use `tags=["period:<YYYY-MM>"]` (EXACT match; this works because v0.4.3 emits the month tier at store). For legacy memories, fall back to `start`/`end` for the month range.
+  - `--time-window=<YYYY-Www>` → ISO week — for v0.4.3+ use `tags=["period:<YYYY-Www>"]` (EXACT match).
+  - `--time-window=<YYYY>` → whole year — for v0.4.3+ use `tags=["period:<YYYY>"]` (EXACT match).
+  - **DO NOT** accept raw `yesterday`, `last week`, `this month`, etc. — silently broken server-side (see Quirk 1 below). If the user passes one of these, translate to a concrete date / week / month first, then use one of the forms above.
+  - **DO NOT** pass `tag_match="prefix"` to any of these — confirmed broken on sub-segments (Quirk 3). Use exact tag match at the right tier.
 - `--type=<Type>` → restrict to a single AutoMem type (overrides Step 2 call #2)
 - `--domain=<X>` → restrict to a single domain by adding `"domain:<X>"` to the `tags` list (e.g. `--domain=coaching` to search only coaching memories within the active project)
 - `--limit=<N>` → override default 10 (max 50 per AutoMem limit)
 - `--global` → drop the `project:<X>` tag filter and search across all projects (use sparingly — pollutes results)
 - `--format=detailed` → switch to `format="detailed"` per-call to see timestamps, importance, full tags
 
-## Temporal queries — server quirks to know (v0.4.2)
+## Temporal queries — server quirks to know (v0.4.3)
 
-Two empirically validated quirks of AutoMem's `recall_memory` to keep in mind. Both verified by live testing on 27 May 2026 — see memories `1724ca5b` and `2bab9557`.
+Three empirically validated quirks of AutoMem's `recall_memory` to keep in mind. All verified by live testing on 27-28 May 2026 — see memories `1724ca5b`, `2bab9557`, and the v0.4.3 audit.
 
 **Quirk 1 — `time_query` natural-language parser is partial.** It handles `"today"` correctly (filters by server timestamp). It **silently ignores `"yesterday"`, `"last 24 hours"`, and presumably most other variants** — the filter disappears and the call becomes a pure semantic search, returning out-of-window results ranked by score. No visible error. Never pass raw NL date values for past windows.
 
 **Quirk 2 — `start`/`end` is a SOFT temporal boost, not a hard filter.** When the query is sémantiquement riche, the scoring model can return high-score matches that fall *outside* the requested window. Same `start`/`end` ISO 8601, two queries: simple "activité" returns 2 in-window results; rich "qu'est-ce que j'ai fait hier" returns 20 results, many pre-date the window. The server respects the filter loosely. So `start`/`end` is useful as a fallback but cannot be relied on for surgical date filtering.
 
-**The ONLY surgical-grade temporal filter is the `period:` tag** (exact for a day, `tag_match="prefix"` for a week/month). It's deterministic, never overridden by scoring. Use it whenever the targeted memories are v0.4.0+ (i.e. carry the auto-injected period: tags).
+**Quirk 3 — `tag_match="prefix"` only matches COMPLETE tags, not sub-segments.** Confirmed 28 May 2026: a filter like `tags=["period:2026-05"]` with `tag_match="prefix"` does NOT match memories tagged `period:2026-05-27`. The server appears to require an exact tag match — the prefix mode only differs from exact in edge cases (string-leading match) that don't apply to our segmented period: tags. **This invalidates the v0.4.2 promise that `tags=["period:YYYY-MM"]` + `prefix` would return the month** — it doesn't. Fix: v0.4.3 emits the multi-tier period: tags directly at store (day + week + month + year, all as separate exact tags), so any tier can be filtered via exact match.
+
+**The ONLY surgical-grade temporal filter is an EXACT `period:` tag match** at the granularity stored. v0.4.3+ memories carry all four tiers (day/week/month/year) as separate tags. Use whichever tier matches the desired window — exact match, no prefix needed.
 
 ### Routing — three cases
 
@@ -134,16 +138,19 @@ recall_memory(query=<query>, start="YYYY-MM-DDT00:00:00Z", end="YYYY-MM-DDT23:59
 
 For legacy memories (pre-v0.4.0, no period: tag), tier 2 is the best available — but you may need to re-filter the result list client-side by inspecting each memory's timestamp if the query is rich. There's no surgical mechanism for date-precise recall on legacy data.
 
-**Case C — multi-day range** (this week, last month, etc.):
+**Case C — multi-day range** (this week, last month, this year, etc.):
 
 ```
-# Tier 1 — surgical (v0.4.0+ memories only)
-recall_memory(query=<query>, tags=["period:YYYY-MM"], tag_match="prefix")    # whole month
-recall_memory(query=<query>, tags=["period:YYYY-Www"], tag_match="prefix")   # ISO week
+# Tier 1 — surgical (v0.4.3+ memories only — they carry day/week/month/year tags)
+recall_memory(query=<query>, tags=["period:YYYY-Www"])     # ISO week — EXACT match
+recall_memory(query=<query>, tags=["period:YYYY-MM"])      # whole month — EXACT match
+recall_memory(query=<query>, tags=["period:YYYY"])         # whole year — EXACT match
 
-# Tier 2 — soft fallback (covers legacy)
+# Tier 2 — soft fallback (covers legacy v0.4.0/0.4.1/0.4.2 + pre-v0.4.0 memories)
 recall_memory(query=<query>, start="<first-day>T00:00:00Z", end="<last-day>T23:59:59Z")
 ```
+
+Important — do NOT pass `tag_match="prefix"` to recall a multi-day range. Prefix matching only works on complete tags (see Quirk 3 above). For ranges, rely on the exact tag at the right tier — v0.4.3+ memories carry all four tiers so this works out of the box.
 
 ### Sort + practical notes
 

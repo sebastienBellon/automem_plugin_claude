@@ -38,9 +38,20 @@ Pick the best `type` from the 8 fixed AutoMem types based on content signals:
 
 ### Step 3: Build the tag list
 
-Always start from the active project tag — read it from the SessionStart banner injected at session start: `tags = ["project:<AUTOMEM_PROJECT_ID>"]`.
+Always start from the active project tag — read `AUTOMEM_PROJECT_ID` from the SessionStart banner injected at session start: `tags = ["project:<AUTOMEM_PROJECT_ID>"]`.
 
 The project slug is semantically a "context slug" — it can identify a code repo, a coaching engagement, a life theme, a journaling thread, anything continuous in time. Don't worry if the slug looks like `default` or `coaching-2026` — the tag's role is bucketing, not naming.
+
+**Dual-tag with alias (v0.4.3)** — also read `AUTOMEM_PROJECT_ALIAS` from the SessionStart banner. If it is set AND different from `AUTOMEM_PROJECT_ID`, ALSO add `"project:<AUTOMEM_PROJECT_ALIAS>"` as a second project tag. This reconciles the machine slug (auto-derived from git remote — e.g. `whisperithq-monorepo`) with the human canonical name (auto-discovered from the repo's `package.json` / `pyproject.toml` — e.g. `whisperit` or `monorepo`). A recall on either tag will match the memory. If the alias is empty or identical to the machine slug, skip this (a redundant dual-tag is worse than none).
+
+**Auto-inject `period:` tags (v0.4.3 — multi-tier)** — compute and add all four temporal tiers for today's date:
+
+- `period:YYYY-MM-DD` (the calendar day, e.g. `period:2026-05-28`)
+- `period:YYYY-Www` (ISO week, e.g. `period:2026-W22` — use the ISO week-based year + week number, %G + %V)
+- `period:YYYY-MM` (the month, e.g. `period:2026-05`)
+- `period:YYYY` (the year, e.g. `period:2026`)
+
+These are deterministic metadata, never wrong, never classification. They enable surgical temporal recall at any granularity ("yesterday", "this week", "this month", "this year") via exact tag-match. The server's `tag_match="prefix"` does NOT match sub-segments — so each tier must be present explicitly at store time for ranges to be queryable.
 
 Add the optional `kind:` / `polarity:` tags from Step 2.
 
@@ -60,6 +71,16 @@ This is a convention, not an enum — use other values if they fit (e.g. `domain
 - `ephemeral:true`
 
 Do **not** add `user:` or `branch:` tags by default — single-user instance, and branch context belongs in the `content` if critical.
+
+### Step 3b: Verify after store (v0.4.3 safeguard)
+
+After Step 5's `store_memory` call returns the new memory ID, do a quick verification recall to confirm the tags landed correctly — the MCP layer can silently drop tags on malformed inputs (see memory `32730ed9`). One call:
+
+```
+recall_memory(priority_ids=["<new_id>"], format="detailed", limit=1)
+```
+
+Check that the returned `Tags:` field contains `project:<AUTOMEM_PROJECT_ID>` and the four `period:*` tags. If any are missing, call `update_memory(memory_id=<new_id>, tags=[<full intended tag list>])` to fix. Don't repeat the store — that would create a duplicate; update is the right primitive.
 
 ### Step 4: Optional pre-store dedup check
 

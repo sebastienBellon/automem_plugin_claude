@@ -34,11 +34,13 @@ fi
 PROJECT="${AUTOMEM_PROJECT_ID:-default}"
 ALIAS="${AUTOMEM_PROJECT_ALIAS:-}"
 
-# Period tags (v0.4.0) — same auto-injection logic as on_stop.sh. See that
-# file for the rationale. Used to make temporal recall ("yesterday", "this
-# week") cheap without requiring a dedicated skill.
+# Period tags (v0.4.3 — multi-tier). See on_stop.sh for the rationale on
+# why we emit 4 tiers (server's tag_match=prefix does NOT match sub-segments,
+# so each range tier — day/week/month/year — must be present explicitly).
 PERIOD_DAY="$(date +%Y-%m-%d 2>/dev/null || echo '')"
 PERIOD_WEEK="$(date +%G-W%V 2>/dev/null || echo '')"
+PERIOD_MONTH="$(date +%Y-%m 2>/dev/null || echo '')"
+PERIOD_YEAR="$(date +%Y 2>/dev/null || echo '')"
 
 # Dual-tag fragment for the rubric template — see on_stop.sh for rationale.
 if [ -n "$ALIAS" ] && [ "$ALIAS" != "$PROJECT" ]; then
@@ -50,13 +52,11 @@ else
   ALIAS_NOTE=""
 fi
 
-if [ -n "$PERIOD_DAY" ] && [ -n "$PERIOD_WEEK" ]; then
-  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\", \"period:$PERIOD_WEEK\""
-elif [ -n "$PERIOD_DAY" ]; then
-  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\""
-else
-  PERIOD_TAGS_FRAGMENT=""
-fi
+PERIOD_TAGS_FRAGMENT=""
+[ -n "$PERIOD_DAY" ]   && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_DAY\""
+[ -n "$PERIOD_WEEK" ]  && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_WEEK\""
+[ -n "$PERIOD_MONTH" ] && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_MONTH\""
+[ -n "$PERIOD_YEAR" ]  && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_YEAR\""
 
 cat <<EOF
 ## Pre-Compaction: Persist durable facts NOW
@@ -103,7 +103,7 @@ store_memory(
 )
 \`\`\`$ALIAS_NOTE
 
-**Note on \`period:\` tags** (v0.4.0): the \`period:$PERIOD_DAY\` / \`period:$PERIOD_WEEK\` tags are auto-injected so temporal queries ("what did I do yesterday/last week") can recall by tag. Keep them as shown — deterministic metadata.
+**Note on \`period:\` tags** (v0.4.3 — multi-tier): the four \`period:\` tags above (\`$PERIOD_DAY\`, \`$PERIOD_WEEK\`, \`$PERIOD_MONTH\`, \`$PERIOD_YEAR\`) are auto-injected so temporal queries at any granularity recall via exact tag match. Keep all four — deterministic metadata.
 
 ### Optional: tie new facts to the existing graph
 

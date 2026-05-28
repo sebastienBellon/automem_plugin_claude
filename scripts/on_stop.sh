@@ -36,14 +36,24 @@ fi
 PROJECT="${AUTOMEM_PROJECT_ID:-unknown}"
 ALIAS="${AUTOMEM_PROJECT_ALIAS:-}"
 
-# Period tags (v0.4.0): auto-injected at every store to enable cheap temporal
-# recall ("yesterday", "this week", "last month") without requiring any new
-# skill. YYYY-MM-DD is deterministic and ISO; YYYY-Www uses ISO week numbers
-# (%G is the ISO week-based year, %V is the ISO week, both work on GNU and
-# BSD date — verified on macOS Sonoma). Falls back to empty string if the
-# date command misbehaves; the rubric below handles missing values.
+# Period tags (v0.4.3 — multi-tier): auto-injected at every store to enable
+# cheap temporal recall ("yesterday", "this week", "last month", "this year")
+# without requiring any new skill. We emit FOUR tiers because the server's
+# tag_match="prefix" does NOT work on sub-segments (empirically validated
+# 28 May 2026): a filter like `period:2026-05` doesn't match `period:2026-05-27`,
+# only exact-tag matches work. So for ranges to be queryable surgically, the
+# range tags must be emitted explicitly at store time. Cost: 4 tags vs 2,
+# pure deterministic metadata, never wrong.
+#
+# Tiers, all using GNU+BSD-compatible date formats:
+#   day   = YYYY-MM-DD  (e.g. 2026-05-28)
+#   week  = YYYY-Www    (ISO week, %G-W%V — handles year boundary correctly)
+#   month = YYYY-MM     (e.g. 2026-05)
+#   year  = YYYY        (e.g. 2026)
 PERIOD_DAY="$(date +%Y-%m-%d 2>/dev/null || echo '')"
 PERIOD_WEEK="$(date +%G-W%V 2>/dev/null || echo '')"
+PERIOD_MONTH="$(date +%Y-%m 2>/dev/null || echo '')"
+PERIOD_YEAR="$(date +%Y 2>/dev/null || echo '')"
 
 # Build the project tag fragment for the rubric template. When an alias is
 # configured in project_map.json (v0.4.0+), we dual-tag every store with
@@ -60,14 +70,14 @@ else
   ALIAS_NOTE=""
 fi
 
-# Build the period tag fragment. Always included when the date command works.
-if [ -n "$PERIOD_DAY" ] && [ -n "$PERIOD_WEEK" ]; then
-  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\", \"period:$PERIOD_WEEK\""
-elif [ -n "$PERIOD_DAY" ]; then
-  PERIOD_TAGS_FRAGMENT=", \"period:$PERIOD_DAY\""
-else
-  PERIOD_TAGS_FRAGMENT=""
-fi
+# Build the period tag fragment. v0.4.3 emits up to 4 tiers (day/week/month/year)
+# when the date command provides them. Each is appended only if non-empty so
+# partial failures of `date` don't break the rubric.
+PERIOD_TAGS_FRAGMENT=""
+[ -n "$PERIOD_DAY" ]   && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_DAY\""
+[ -n "$PERIOD_WEEK" ]  && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_WEEK\""
+[ -n "$PERIOD_MONTH" ] && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_MONTH\""
+[ -n "$PERIOD_YEAR" ]  && PERIOD_TAGS_FRAGMENT="$PERIOD_TAGS_FRAGMENT, \"period:$PERIOD_YEAR\""
 
 cat <<EOF
 **End-of-turn memory ops — agent-driven, silent by default, compact notification at the end.**
@@ -106,7 +116,7 @@ store_memory(
 )
 \`\`\`$ALIAS_NOTE
 
-**Note on \`period:\` tags** (v0.4.0): the two \`period:$PERIOD_DAY\` / \`period:$PERIOD_WEEK\` tags above are auto-injected so future temporal queries ("what did I do yesterday", "last week") can recall by tag without needing any new skill. Keep them in your \`tags\` array exactly as shown — they are deterministic metadata, not categorisation.
+**Note on \`period:\` tags** (v0.4.3 — multi-tier): the four \`period:\` tags above (\`$PERIOD_DAY\`, \`$PERIOD_WEEK\`, \`$PERIOD_MONTH\`, \`$PERIOD_YEAR\`) are auto-injected so future temporal queries ("yesterday", "this week", "May 2026", "this year") all work as exact tag-match recalls — the server's \`tag_match="prefix"\` does NOT match sub-segments, so each range tier must be present explicitly at store time. Keep them all in your \`tags\` array exactly as shown — deterministic metadata, never wrong, never categorising.
 
 Type cheat sheet: \`Decision\` (choices, trade-offs), \`Pattern\` (recurring positive patterns observed), \`Style\` (code conventions), \`Preference\` (user prefs), \`Insight\` (task learning, bug-fix root cause with tag \`kind:bug-fix\`, anti-pattern with tag \`kind:anti-pattern\`), \`Habit\` (workflows), \`Context\` (environmental / ephemeral).
 

@@ -246,31 +246,201 @@ def _lookup_project_map(cwd: str) -> str:
 def resolve_alias(cwd: str | None = None) -> str:
     """Resolve the optional human-friendly alias for the current context.
 
-    Returns the alias from project_map.json (looked up by cwd, then by
-    remote-hash key). Returns empty string when no alias is configured —
-    legacy string entries always yield empty string.
+    Two-tier resolution (added in v0.4.3 to remove the dependency on a
+    user-maintained ``project_map.json`` — the OS-memory-layer principle
+    is that Sébastien never has to edit config files):
 
-    The alias is used by hooks to dual-tag stores: ``project:<machine-slug>``
-    alongside ``project:<alias>``. Either tag will match a recall.
+      Tier 1 — **Auto-discovery** from the repo's own manifest files:
+        - ``package.json``  → ``name`` field (strips ``@scope/`` prefix)
+        - ``pyproject.toml`` → ``[project].name`` or ``[tool.poetry].name``
+      The hook walks up from cwd to find ``.git``, then looks for the
+      manifest in that directory. Zero user intervention required.
+
+      Tier 2 — **project_map.json lookup** (legacy v0.4.0 mechanism, kept
+      for back-compat): if a user has explicitly written an alias there,
+      it is honoured. Looked up by cwd then by remote-hash key.
+
+    The resolved alias is compared against the machine slug (owner-repo
+    from git remote). If identical (after slugify), no alias is emitted —
+    a redundant dual-tag is worse than none.
+
+    Returns empty string when neither tier yields a non-redundant alias.
+    The alias is used by hooks to dual-tag stores:
+    ``project:<machine-slug>`` alongside ``project:<alias>``. Either tag
+    matches a recall.
     """
     if cwd is None:
         cwd = os.getcwd()
-    if not os.path.isfile(MAP_PATH):
-        return ""
-    try:
-        with open(MAP_PATH) as f:
-            project_map = json.load(f)
-        alias = _entry_alias(project_map.get(cwd))
-        if alias:
-            return alias
-        remote_key = _remote_hash_key(cwd)
-        if remote_key:
-            alias = _entry_alias(project_map.get(remote_key))
-            if alias:
+
+    machine_slug = _resolve_machine_slug(cwd)
+
+    # Tier 1 — auto-discovery from manifest files in the repo root
+    discovered = _discover_canonical_name(cwd)
+    if discovered:
+        discovered_slug = _slugify_for_compare(discovered)
+        if discovered_slug and discovered_slug != _slugify_for_compare(machine_slug):
+            return discovered
+
+    # Tier 2 — project_map.json lookup (legacy, opt-in)
+    if os.path.isfile(MAP_PATH):
+        try:
+            with open(MAP_PATH) as f:
+                project_map = json.load(f)
+            alias = _entry_alias(project_map.get(cwd))
+            if not alias:
+                remote_key = _remote_hash_key(cwd)
+                if remote_key:
+                    alias = _entry_alias(project_map.get(remote_key))
+            if alias and _slugify_for_compare(alias) != _slugify_for_compare(machine_slug):
                 return alias
-    except (OSError, json.JSONDecodeError, AttributeError):
-        pass
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+
     return ""
+
+
+def _resolve_machine_slug(cwd: str) -> str:
+    """Return the owner-repo slug derived from the current git remote,
+    or empty string if not a git repo. Used to compare against discovered
+    aliases to avoid emitting redundant dual-tags.
+    """
+    walked = _walk_up_for_project(cwd, max_levels=6)
+    return walked or ""
+
+
+def _slugify_for_compare(name: str) -> str:
+    """Lowercase + replace non-alphanumeric with '-' + collapse repeats +
+    trim leading/trailing dashes. Used to compare a discovered canonical
+    name against the machine slug to detect redundancy.
+    """
+    if not name:
+        return ""
+    lowered = name.lower()
+    out = []
+    last_dash = False
+    for ch in lowered:
+        if ch.isalnum():
+            out.append(ch)
+            last_dash = False
+        else:
+            if not last_dash:
+                out.append("-")
+                last_dash = True
+    return "".join(out).strip("-")
+
+
+def _discover_canonical_name(cwd: str, max_levels: int = 6) -> str:
+    """Walk up from cwd looking for a repo manifest, and return the
+    canonical project name declared inside it.
+
+    Sources tried, in order of priority:
+      1. ``package.json``  — ``name`` field (Node / web projects)
+      2. ``pyproject.toml`` — ``[project].name`` or ``[tool.poetry].name``
+
+    We anchor the discovery on the directory that also contains ``.git``
+    (so we look in the repo root, not in a parent that happens to have a
+    package.json for unrelated reasons). If we don't find ``.git`` within
+    max_levels, we still try the cwd as a last resort.
+
+    Returns the raw name verbatim (e.g. ``"@whisperithq/monorepo"`` is
+    returned as-is — slugification happens later only if needed for
+    comparison; the agent receives the human-readable form).
+
+    Returns empty string when nothing is found.
+    """
+    current = os.path.abspath(cwd)
+    repo_root = ""
+
+    # First pass: find the .git anchor
+    for _ in range(max_levels):
+        if os.path.exists(os.path.join(current, ".git")):
+            repo_root = current
+            break
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+
+    # If no .git, fall back to cwd — we still try the manifest there
+    if not repo_root:
+        repo_root = os.path.abspath(cwd)
+
+    # 1. package.json → name field
+    pkg_path = os.path.join(repo_root, "package.json")
+    if os.path.isfile(pkg_path):
+        try:
+            with open(pkg_path) as f:
+                pkg = json.load(f)
+            name = str(pkg.get("name", "")).strip()
+            if name:
+                # Strip @scope/ prefix if present (e.g. @whisperithq/monorepo
+                # → monorepo). Common in npm workspaces; the unscoped part
+                # is the readable name.
+                if name.startswith("@") and "/" in name:
+                    name = name.split("/", 1)[1]
+                return name
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # 2. pyproject.toml → [project].name or [tool.poetry].name
+    pyp_path = os.path.join(repo_root, "pyproject.toml")
+    if os.path.isfile(pyp_path):
+        name = _read_pyproject_name(pyp_path)
+        if name:
+            return name
+
+    return ""
+
+
+def _read_pyproject_name(path: str) -> str:
+    """Extract the project name from pyproject.toml without requiring a
+    TOML library (stays dependency-free, works on any Python 3.x).
+
+    We use ``tomllib`` if available (Python 3.11+), otherwise fall back to
+    a simple regex parser that handles the common case ``name = "value"``
+    under ``[project]`` or ``[tool.poetry]``. The regex parser doesn't
+    handle multi-line values or inline tables — it's best-effort. If the
+    pyproject is exotic, we return empty string and the hook tags only
+    with the machine slug; no harm done.
+    """
+    try:
+        try:
+            import tomllib  # type: ignore[import-not-found]
+        except ImportError:
+            tomllib = None  # type: ignore[assignment]
+        if tomllib is not None:
+            with open(path, "rb") as f:
+                data = tomllib.load(f)
+            for section in (("project", "name"), ("tool", "poetry", "name")):
+                cursor = data
+                ok = True
+                for key in section:
+                    if isinstance(cursor, dict) and key in cursor:
+                        cursor = cursor[key]
+                    else:
+                        ok = False
+                        break
+                if ok and isinstance(cursor, str) and cursor.strip():
+                    return cursor.strip()
+            return ""
+        # Fallback regex parser (no tomllib available)
+        with open(path) as f:
+            text = f.read()
+        current_section = ""
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("[") and line.endswith("]"):
+                current_section = line[1:-1].strip()
+                continue
+            if current_section in ("project", "tool.poetry"):
+                m = re.match(r"^name\s*=\s*[\"']([^\"']+)[\"']\s*(?:#.*)?$", line)
+                if m:
+                    return m.group(1).strip()
+        return ""
+    except OSError:
+        return ""
 
 
 def save_alias(cwd: str, alias: str) -> None:
