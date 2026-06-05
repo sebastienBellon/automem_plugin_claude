@@ -1,5 +1,78 @@
 # Changelog
 
+## v0.4.4 — 2026-06-04 — Multi-agent safe: drop global active-project + README.md H1 fallback
+
+**Theme.** Two changes that together close the last frictionless-OS-layer
+gaps. (1) The `~/.automem-plugin/active-project.txt` mechanism — a global
+persistent override introduced in v0.1.7 — was actively breaking multi-agent
+multi-worktree workflows: one agent calling `/automem:switch-project`
+contaminated every other agent and every Cowork session because the file
+is global and survives across sessions. It's removed entirely.
+(2) Auto-discovery of the human-readable canonical name gains a 3rd source:
+`README.md` H1 line. This unblocks repos that have no `package.json` and
+no `pyproject.toml` (e.g. the `automem-plugin` repo itself, whose README
+starts with `# automem-plugin`).
+
+### Removed
+
+- **Global persistent `active-project.txt` override** (was Priority 2 in
+  the project_id cascade since v0.1.7). The mechanism was a multi-agent
+  anti-pattern: a single file at `~/.automem-plugin/active-project.txt`
+  was read by every Claude Code / Cowork session on the machine, so one
+  agent switching scope contaminated every other agent. Confirmed
+  empirically on 2026-06-04: an agent in a Cowork session called
+  `/automem:switch-project sebastienBellon-h55-testgen`, and after that
+  every other session (including Cowork's own and Claude Code on
+  Whisperit) resolved their project to `h55-testgen` despite working
+  in completely different repos.
+- `_read_active_project()` and `write_active_project()` helpers removed
+  from `scripts/_project.py`.
+
+### Changed
+
+- **`scripts/_project.py`** — `resolve_project_id` cascade simplified
+  from 5 steps to 4: env var → project_map.json → walk-up → default.
+  Per-cwd resolution is now the canonical mechanism; no global override.
+  For ephemeral per-session overrides, use the `AUTOMEM_PROJECT_ID`
+  env var (per-shell, isolated per process).
+- **`skills/switch-project/SKILL.md`** — completely reworked: the
+  "active project global override" mode is gone. The skill now does
+  alias-only: `--alias <name>` writes to `project_map.json` for the
+  current cwd (per-cwd, keyed by remote-hash for portability across
+  checkouts). The previous `<slug>` / `reset` / `clear` / `none` modes
+  are removed. The skill description and frontmatter explicitly point
+  to the env var alternative for ephemeral overrides.
+- **`scripts/_project.py:_discover_canonical_name`** gained a 3rd source:
+  `README.md` H1 line. Filtered to ≤40 chars and alphanumeric-ish to
+  avoid descriptive titles like "# My Awesome Project — A revolutionary
+  tool…". New helper `_read_readme_h1()`.
+
+### Migration
+
+- **Existing `~/.automem-plugin/active-project.txt` files** are now
+  ignored. Delete manually if you want to clean up:
+  ```bash
+  rm -f ~/.automem-plugin/active-project.txt
+  ```
+  (Optional — keeping the file does nothing now, but a cleanup is tidy.)
+- **Agents that were tagging stores under the wrong scope** because of
+  active-project.txt will start tagging correctly at the next session
+  start. Pre-v0.4.4 stores remain tagged with whatever active-project.txt
+  pointed to at the time — those are legacy and can be fixed manually
+  with `update_memory` if needed.
+
+### Validation
+
+5 scenarios tested in `_project.py`:
+- README.md H1 simple → returned correctly
+- README.md H1 too long (>40 chars) → filtered out
+- README.md H1 with inline backticks → stripped
+- package.json priority over README.md → respected
+- `active-project.txt` present but ignored → resolve falls through to
+  walk-up correctly. **This validates that the toxic mechanism is dead.**
+
+---
+
 ## v0.4.3 — 2026-05-28 — Frictionless dual-tag + multi-tier period: + cross-skill coverage
 
 **Theme.** Three bugs surfaced by a real-world audit on 28 May 2026 led to a

@@ -6,19 +6,32 @@ a journaling thread, a brainstorming track…). The implementation supports
 both transparently.
 
 Resolution priority (project_id) — order matters, first non-empty wins:
-  1. AUTOMEM_PROJECT_ID env var (explicit override, ephemeral per shell)
-  2. ~/.automem-plugin/active-project.txt (set by /automem:switch-project)
-     — the simple, intentional, global active slug. NEW in v0.1.7.
-  3. ~/.automem-plugin/project_map.json lookup by cwd
-  3b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing)
-  4. Walk-up from cwd looking for a project marker:
+  1. AUTOMEM_PROJECT_ID env var (explicit override, ephemeral per shell —
+     scoped to a single process, safe in multi-agent workflows)
+  2. ~/.automem-plugin/project_map.json lookup by cwd
+  2b. ~/.automem-plugin/project_map.json lookup by remote hash (self-healing)
+  3. Walk-up from cwd looking for a project marker:
      .automem-project (explicit), .git (git slug), CLAUDE.md, AGENTS.md
      (automem.md / mem0.md were dropped in v0.3.1 — tool-specific memory-config
      files, out of scope for an OS memory layer.)
-  5. Default context (FINAL fallback):
+  4. Default context (FINAL fallback):
      Read ~/.automem-plugin/default-context.txt content (or the legacy
      ~/.automem-plugin/cowork-default-project.txt for v0.1.1 back-compat).
      If neither exists or both are empty, return the literal slug "default".
+
+Changes in v0.4.4 vs v0.4.3:
+- REMOVED the global ~/.automem-plugin/active-project.txt mechanism
+  (was Priority 2 in v0.1.7-v0.4.3). Reason: it was a global persistent
+  override that broke multi-agent multi-worktree workflows — one agent
+  switching scope contaminated every other agent and every Cowork session
+  on the system, because the file is global and persists across sessions.
+  The cwd-based auto-discovery (Priority 3) is now the canonical mechanism;
+  if a session needs an ephemeral override, use the AUTOMEM_PROJECT_ID
+  env var (per-shell, isolated).
+- ``_discover_canonical_name`` gained a 3rd source: ``README.md`` H1 line
+  (filtered to ≤40 chars + alphanumeric-ish). Helps repos without
+  package.json or pyproject.toml (e.g. plugin repos with a clean
+  "# project-name" first line).
 
 Changes in v0.4.0 vs v0.3.x:
 - ``project_map.json`` entries can now be either a string (legacy format,
@@ -69,11 +82,11 @@ import re
 import subprocess
 
 MAP_PATH = os.path.expanduser("~/.automem-plugin/project_map.json")
-# Active project override (set by /automem:switch-project). When this file
-# exists and is non-empty, its content is used as the project slug — this
-# takes priority over everything except the AUTOMEM_PROJECT_ID env var.
-# Single source of truth, no cwd binding, persists across sessions.
-ACTIVE_PROJECT_FILE = os.path.expanduser("~/.automem-plugin/active-project.txt")
+# v0.4.4 — ACTIVE_PROJECT_FILE removed. The ~/.automem-plugin/active-project.txt
+# global persistent override was a multi-agent anti-pattern: one agent
+# switching scope contaminated every other agent / Cowork session because
+# the file is global and survives across sessions. For ephemeral per-session
+# overrides, use the AUTOMEM_PROJECT_ID env var (per-shell, isolated).
 # Default context file (was cowork-default-project.txt in v0.1.1 — kept as
 # fallback for backward compatibility). Used in final-fallback step only.
 DEFAULT_CONTEXT_FILE = os.path.expanduser("~/.automem-plugin/default-context.txt")
@@ -102,64 +115,24 @@ def resolve_project_id(cwd: str | None = None) -> str:
     if cwd is None:
         cwd = os.getcwd()
 
-    # 1. Explicit override (env var, ephemeral per shell)
+    # 1. Explicit override (env var, ephemeral per shell, isolated per process)
     explicit = os.environ.get("AUTOMEM_PROJECT_ID", "").strip()
     if explicit:
         return explicit
 
-    # 2. Active project file (set by /automem:switch-project)
-    # This is the "I'm focused on X right now" override. Single line, no cwd
-    # binding, persists across sessions until /automem:switch-project reset
-    # removes it. Simplest and most predictable user-facing mechanism.
-    active = _read_active_project()
-    if active:
-        return active
-
-    # 3. project_map.json lookup (cwd + remote hash self-healing).
-    # Advanced mechanism for per-cwd binding (team-shared repos, etc.).
+    # 2. project_map.json lookup (cwd + remote hash self-healing).
+    # Per-cwd binding (legacy opt-in mechanism, kept for back-compat).
     mapped = _lookup_project_map(cwd)
     if mapped:
         return mapped
 
-    # 4. Walk-up for project markers
+    # 3. Walk-up for project markers (the canonical mechanism in v0.4.4+)
     walked = _walk_up_for_project(cwd, max_levels=6)
     if walked:
         return walked
 
-    # 5. Final fallback: default-context.txt content, else literal "default"
+    # 4. Final fallback: default-context.txt content, else literal "default"
     return _read_default_context()
-
-
-def _read_active_project() -> str:
-    """Return the active project slug from ~/.automem-plugin/active-project.txt
-    if present and non-empty. Returns empty string otherwise. Trims whitespace
-    and a possible leading 'project:' prefix (in case the user typed the full
-    tag form by habit).
-    """
-    if not os.path.isfile(ACTIVE_PROJECT_FILE):
-        return ""
-    try:
-        with open(ACTIVE_PROJECT_FILE) as f:
-            name = f.read().strip()
-        if name.startswith("project:"):
-            name = name[len("project:"):].strip()
-        return name
-    except OSError:
-        return ""
-
-
-def write_active_project(slug: str) -> None:
-    """Set the active project slug. Empty/None deletes the override."""
-    os.makedirs(os.path.dirname(ACTIVE_PROJECT_FILE), exist_ok=True)
-    slug = (slug or "").strip()
-    if slug.startswith("project:"):
-        slug = slug[len("project:"):].strip()
-    if slug:
-        with open(ACTIVE_PROJECT_FILE, "w") as f:
-            f.write(slug + "\n")
-    else:
-        if os.path.isfile(ACTIVE_PROJECT_FILE):
-            os.remove(ACTIVE_PROJECT_FILE)
 
 
 def _read_default_context() -> str:
@@ -336,6 +309,10 @@ def _discover_canonical_name(cwd: str, max_levels: int = 6) -> str:
     Sources tried, in order of priority:
       1. ``package.json``  — ``name`` field (Node / web projects)
       2. ``pyproject.toml`` — ``[project].name`` or ``[tool.poetry].name``
+      3. ``README.md``     — H1 line (``# project-name``) when ≤40 chars
+                             and alphanumeric-ish — added in v0.4.4 to
+                             handle repos without manifest (e.g. plugin
+                             repos with a clean readable H1).
 
     We anchor the discovery on the directory that also contains ``.git``
     (so we look in the repo root, not in a parent that happens to have a
@@ -389,6 +366,58 @@ def _discover_canonical_name(cwd: str, max_levels: int = 6) -> str:
         if name:
             return name
 
+    # 3. README.md → H1 line (v0.4.4)
+    # Best-effort: read the first H1 line, strip prefix, validate.
+    # Skip if the H1 is too verbose (>40 chars) or contains badges/links
+    # — those are typically descriptive titles, not canonical names.
+    readme_path = os.path.join(repo_root, "README.md")
+    if os.path.isfile(readme_path):
+        name = _read_readme_h1(readme_path)
+        if name:
+            return name
+
+    return ""
+
+
+def _read_readme_h1(path: str) -> str:
+    """Extract the first H1 line (``# title``) from a README.md.
+
+    Filters to keep only canonical-name-shaped titles:
+      - ≤ 40 chars (long titles are typically descriptive, e.g.
+        "# My Awesome Project — A revolutionary tool for…")
+      - Contains at least one alphanumeric character
+      - Trimmed of leading/trailing whitespace and any inline backticks
+        (e.g. "# `my-project`" → "my-project")
+
+    Returns empty string when no suitable H1 is found in the first
+    20 non-blank lines, or when the H1 fails the filter.
+    """
+    try:
+        with open(path) as f:
+            lines_read = 0
+            for raw in f:
+                line = raw.strip()
+                if not line:
+                    continue
+                lines_read += 1
+                if lines_read > 20:
+                    return ""
+                # Match "# title" (exactly one #, then space, then text)
+                m = re.match(r"^#\s+(.+?)\s*$", line)
+                if not m:
+                    continue
+                title = m.group(1).strip()
+                # Strip inline backticks
+                title = title.strip("`").strip()
+                # Length filter: too long → probably descriptive
+                if len(title) > 40:
+                    return ""
+                # Must contain at least one alphanumeric character
+                if not any(c.isalnum() for c in title):
+                    return ""
+                return title
+    except OSError:
+        pass
     return ""
 
 
