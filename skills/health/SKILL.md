@@ -100,8 +100,8 @@ Single compact block, aligned:
 ## AutoMem Health
 
 PASS  Server         FalkorDB + Qdrant connected, dim 1024, enrichment idle
-PASS  Identity       user=sbellon, project=automem-plugin, session=ses_…1c72528
-PASS  Counts         42 in project:automem-plugin (--all to scan globally)
+PASS  Identity       user=alice, project=my-project, session=ses_…1c72528
+PASS  Counts         42 in project:my-project (--all to scan globally)
 PASS  Write/Read     probe ok in 1.2 s
 PASS  State dir      ~/.automem-plugin/state/ writable, settings.json valid
 PASS  Hook scripts   9 found, perms ok

@@ -21,10 +21,10 @@ starts with `# automem-plugin`).
   was read by every Claude Code / Cowork session on the machine, so one
   agent switching scope contaminated every other agent. Confirmed
   empirically on 2026-06-04: an agent in a Cowork session called
-  `/automem:switch-project sebastienBellon-h55-testgen`, and after that
-  every other session (including Cowork's own and Claude Code on
-  Whisperit) resolved their project to `h55-testgen` despite working
-  in completely different repos.
+  `/automem:switch-project project-B`, and after that every other session
+  (including Cowork's own and Claude Code on a completely different
+  project A) resolved their project to `project-B` despite working in
+  unrelated repos.
 - `_read_active_project()` and `write_active_project()` helpers removed
   from `scripts/_project.py`.
 
@@ -89,7 +89,7 @@ v0.4.2 promise that month/week ranges would be queryable via prefix.
 
 ### Fixed
 
-- **Bug A — Dual-tag depended on `project_map.json`, a file Sébastien
+- **Bug A — Dual-tag depended on `project_map.json`, a file the user
   refuses to maintain.** The hook would never emit the alias because no
   alias was ever configured. Fix: `scripts/_project.py:resolve_alias()`
   now does **auto-discovery** from the repo's own manifest files
@@ -264,9 +264,9 @@ quality data justifies them.
   When an alias is configured, the hook injects BOTH `project:owner-repo`
   AND `project:human-name` into every `store_memory` call's tags. Recall
   on either tag finds the memory — fixing the historical case where a
-  store from Claude Code on `whisperithq/monorepo` landed under
-  `project:whisperithq-monorepo` and a store from Claude.ai chat landed
-  under `project:whisperit`, and recall on one missed the other.
+  store from Claude Code on `acmehq/monorepo` landed under
+  `project:acmehq-monorepo` and a store from Claude.ai chat landed
+  under `project:acme`, and recall on one missed the other.
 - **`AUTOMEM_PROJECT_ALIAS` env var** exported by `scripts/_project.sh`
   alongside `AUTOMEM_PROJECT_ID`. Hooks consume it to build dual-tag
   fragments.

@@ -58,7 +58,7 @@ PERIOD_YEAR="$(date +%Y 2>/dev/null || echo '')"
 # Build the project tag fragment for the rubric template. When an alias is
 # configured in project_map.json (v0.4.0+), we dual-tag every store with
 # both the machine slug (auto-derived from git remote: owner-repo) and the
-# human-friendly alias (e.g. "whisperit" vs "whisperithq-monorepo"). Recall
+# human-friendly alias (e.g. "acme" vs "acme-monorepo"). Recall
 # on either tag finds the memory, solving the historical fragmentation
 # between hook-generated slugs and chat/Cowork conventions.
 if [ -n "$ALIAS" ] && [ "$ALIAS" != "$PROJECT" ]; then

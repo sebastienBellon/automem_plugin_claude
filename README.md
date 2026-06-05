@@ -39,11 +39,11 @@ claude plugin install automem@automem
 
 Redémarre Cowork / ouvre une nouvelle session CLI après installation. Une bannière `AutoMem Active | project=… | branch=…` apparaîtra au prochain `SessionStart`.
 
-### Repo privé
+### Repo privé (rappel)
 
-Si le repo est privé, l'install manuelle ci-dessus réutilise tes credentials git existants (`gh` CLI, ssh-agent, macOS Keychain, etc.) — rien à configurer si `git clone git@github.com:sebastienBellon/automem_plugin_claude.git` marche déjà chez toi.
+Si tu forks le plugin dans un repo privé, l'install manuelle ci-dessus réutilise tes credentials git existants (`gh` CLI, ssh-agent, macOS Keychain, etc.) — rien à configurer si `git clone` marche déjà chez toi.
 
-Pour activer les **auto-updates au démarrage** (non-interactifs), il faut un token dans l'environnement :
+Pour activer les **auto-updates au démarrage** (non-interactifs) sur un fork privé, il faut un token dans l'environnement :
 
 ```bash
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx

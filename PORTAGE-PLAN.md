@@ -83,7 +83,7 @@ AutoMem n'a pas de scoping natif `user_id` / `app_id` / `run_id`. Plutôt que de
 
 | Tag | Quand l'ajouter | Justification |
 |---|---|---|
-| `project:<slug>` | **Sur toutes les mémoires** | Permet la maintenance ("compte les décisions WhisperIt", "purge le projet X"), évite la pollution sémantique cross-projet, et boost les recall scopés. **Sémantiquement c'est un "context slug" — pas forcément un repo de code, peut être un thème de vie, une thématique de coaching, un journal, etc.** |
+| `project:<slug>` | **Sur toutes les mémoires** | Permet la maintenance ("compte les décisions sur le projet acme", "purge le projet X"), évite la pollution sémantique cross-projet, et boost les recall scopés. **Sémantiquement c'est un "context slug" — pas forcément un repo de code, peut être un thème de vie, une thématique de coaching, un journal, etc.** |
 | `domain:<X>` | **Quand le type de contexte importe pour le filtrage** (optionnel) | Convention non-imposée : valeurs recommandées `code`, `personal`, `coaching`, `planning`, `learning`. Liste extensible (`writing`, `research`, `health`, …). Permet de filtrer "toutes mes décisions de coaching" sans avoir à parcourir les projets un par un. **Pas de détection automatique** — c'est à l'agent de proposer le tag pertinent lors du `store_memory`. |
 | `session:<ses_id>` | **Uniquement sur les mémoires éphémères** (`Context` avec `kind:session-state` ou `kind:compact-summary`) | Permet de purger une session entière en bloc sans toucher aux mémoires durables |
 | `ephemeral:true` | En complément de `session:` | Filtre rapide pour les opérations de cleanup |
@@ -92,11 +92,11 @@ AutoMem n'a pas de scoping natif `user_id` / `app_id` / `run_id`. Plutôt que de
 
 **Pas de tag** `branch:<X>` — rarement pertinent au-delà du cas où une décision est strictement liée à une feature branch éphémère. Si une mémoire est branch-spécifique, le `content` doit l'expliquer.
 
-**Le contexte narratif riche reste dans le `content`** — chaque mémoire commence idéalement par un préambule qui situe (« Sur WhisperIt en mai 2026, j'ai décidé X parce que Y »). Les tags ne remplacent pas le contexte, ils l'augmentent pour le filtrage rapide.
+**Le contexte narratif riche reste dans le `content`** — chaque mémoire commence idéalement par un préambule qui situe (« Sur acme en mai 2026, j'ai décidé X parce que Y »). Les tags ne remplacent pas le contexte, ils l'augmentent pour le filtrage rapide.
 
 ### Pourquoi `domain:` plutôt que des `project:` distincts pour chaque domaine ?
 
-Parce que le projet est l'unité de **continuité** (« je travaille là-dessus depuis 3 mois »), alors que le domain est l'unité de **catégorie** (« ce sont des questions de carrière »). Un projet peut traverser plusieurs domains (ex. `project:reconversion-2026` mélange `domain:coaching`, `domain:planning`, `domain:learning`). Un domain peut couvrir plusieurs projets (ex. `domain:code` regroupe `project:WhisperIt` + `project:automem-plugin` + …). Les deux dimensions sont orthogonales.
+Parce que le projet est l'unité de **continuité** (« je travaille là-dessus depuis 3 mois »), alors que le domain est l'unité de **catégorie** (« ce sont des questions de carrière »). Un projet peut traverser plusieurs domains (ex. `project:reconversion-2026` mélange `domain:coaching`, `domain:planning`, `domain:learning`). Un domain peut couvrir plusieurs projets (ex. `domain:code` regroupe `project:acme` + `project:side-project` + …). Les deux dimensions sont orthogonales.
 
 ### Résolution du `project:<slug>` (mise à jour 26 mai 2026, v0.1.7 simplifié)
 
@@ -254,7 +254,7 @@ Total Tier 1 : **~1h de code**.
 
 ### Tier 3 — Confort, valeur modérée (✅ livré v0.3.0)
 
-Initialement marqué optionnel ("à faire si l'usage le demande"), finalement livré dans la foulée pour avoir un plugin 100% complet sur lequel faire les évals d'usage réel (logique Sébastien : « finir puis évaluer plutôt que coder spéculativement plus tard »).
+Initialement marqué optionnel ("à faire si l'usage le demande"), finalement livré dans la foulée pour avoir un plugin 100% complet sur lequel faire les évals d'usage réel (principe directeur : « finir puis évaluer plutôt que coder spéculativement plus tard »).
 
 - `/automem:tour` ✅ — navigation paginée par les 8 types AutoMem, sortie groupée + decorations (pinned, importance, kind:, INVALIDATED). Flags `--type`, `--since`, `--limit`, `--include-ephemeral`, `--include-invalidated`. v0.3.0.
 - `/automem:stats` ✅ — distribution quantitative par type/domain/age/importance/confidence, pinned/ephemeral/invalidated counts, mode `--weekly`/`--monthly` pour activity over time. Mode `--export-json` pour scripting. v0.3.0.
@@ -278,7 +278,7 @@ Volontairement écartés. Si l'usage évolue (genre tu décides un jour d'utilis
 
 ## 8.5. Bruit NER serveur (open issue upstream)
 
-AutoMem applique un NER côté serveur sur le `content` de chaque mémoire et ajoute des tags `entity:<bucket>:<value>` automatiques. Observé en usage réel sur 15 mémoires : ~30-50% des tags ajoutés sont des faux positifs, en particulier sur du texte français (perte des diacritiques) et du jargon technique (acronymes, noms composés). Échantillon : `entity:concepts:s-bastien` (Sébastien), `entity:organizations:postcompact` (label technique), `entity:organizations:context` / `fallback` / `pas-de` / `uniquement` (mots communs mal classés), `entity:people:claude-code` (tool mal classé en personne).
+AutoMem applique un NER côté serveur sur le `content` de chaque mémoire et ajoute des tags `entity:<bucket>:<value>` automatiques. Observé en usage réel sur 15 mémoires : ~30-50% des tags ajoutés sont des faux positifs, en particulier sur du texte français (perte des diacritiques) et du jargon technique (acronymes, noms composés). Échantillon : `entity:concepts:fran-ois` (prénom mal slugifié, diacritiques perdus), `entity:organizations:postcompact` (label technique), `entity:organizations:context` / `fallback` / `pas-de` / `uniquement` (mots communs mal classés), `entity:people:claude-code` (tool mal classé en personne).
 
 **Impact réel** : faible tant qu'on ne fait pas `expand_entities=true` dans les recall. Le scoring de `recall_memory` dépend principalement de l'embedding (sur le `content`) et des tags qu'on contrôle (`project:`, `domain:`, `kind:`). Les `entity:*` sont passifs. **Critique** uniquement si activé via `expand_entities`.
 
@@ -307,6 +307,6 @@ Toutes tranchées au 26 mai 2026 (v0.3.1).
 
 ## 10. Annexes — fichiers de référence
 
-- Plan V1 obsolète : `/Users/sbellon/Library/Application Support/Claude/local-agent-mode-sessions/.../outputs/automem-portage-plan.md` (à archiver, garder pour traçabilité)
+- Plan V1 obsolète : archivé localement chez l'auteur (à conserver pour traçabilité)
 - Mémoires AutoMem de référence (5 stockées le 25 mai 2026, IDs `b29a0b89`, `1e0ecd9f`, `d9d0a033`, `7cc6ab57`, `ab1429eb`) — tissées par 4 arêtes
 - Code source plugin mem0 v0.2.4 — réutiliser comme blueprint pour `hooks.json`, `_identity.sh`, `_project.py`, scripts génériques (rename mem0→automem)

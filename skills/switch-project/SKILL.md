@@ -19,7 +19,7 @@ That's per-shell, isolated per process, and never leaks to other agents.
 
 Attach a human-friendly alias to the current cwd in `~/.automem-plugin/project_map.json`. The machine slug (auto-derived by the hook from `git remote get-url origin` → owner-repo) is preserved; the alias is added as a secondary tag that the hook injects alongside it at every store. Recall on either tag will find the memory.
 
-**Use case** : your repo's git remote owner is `whisperithq` (so the auto-slug is `whisperithq-monorepo`), but you naturally refer to it as just `whisperit` in chat / Cowork conversations. The v0.4.3+ hook auto-discovers a canonical name from `package.json:name` / `pyproject.toml:[project].name` / `README.md` H1 — but if that auto-discovery produces something you don't like (or produces nothing), this skill lets you set an explicit alias once per repo, keyed by cwd.
+**Use case** : your repo's git remote owner is `acmehq` (so the auto-slug is `acmehq-monorepo`), but you naturally refer to it as just `acme` in chat / Cowork conversations. The v0.4.3+ hook auto-discovers a canonical name from `package.json:name` / `pyproject.toml:[project].name` / `README.md` H1 — but if that auto-discovery produces something you don't like (or produces nothing), this skill lets you set an explicit alias once per repo, keyed by cwd.
 
 ## Execution
 
@@ -28,7 +28,7 @@ Attach a human-friendly alias to the current cwd in `~/.automem-plugin/project_m
 The user provides the alias: `/automem:switch-project --alias <human-slug>` (or `/automem:switch-project --alias-remove` to remove a previously-set alias).
 
 - If the alias starts with `project:`, strip the prefix automatically.
-- Recommend kebab-case if the slug has spaces or unusual chars: `whisperit`, `automem-plugin`, `coaching-2026`. Accept anyway.
+- Recommend kebab-case if the slug has spaces or unusual chars: `acme`, `my-side-project`, `coaching-2026`. Accept anyway.
 - If no argument is provided, ask: "What alias do you want for this repo? (Or `--alias-remove` to remove the existing alias.)"
 
 ### Step 2: Resolve current cwd and existing entry
@@ -117,4 +117,4 @@ If both are absent or identical to the machine slug, no dual-tag is emitted (a r
 - **Alias equals machine slug** — silently no-op. The hook only emits the alias tag when it differs from the machine slug.
 - **No git repo / no remote** — alias is still attached to the cwd, but won't survive a different checkout of the same project (no remote-hash key). Warn the user.
 - **Multiple cwd paths pointing to the same repo** — the remote-hash key handles this: setting the alias once in any checkout propagates to others via the self-heal lookup in `_project.py`.
-- **Auto-discovery already gives a good alias** — you usually don't need this skill. Only invoke it when auto-discovery produces something unwanted (e.g. `monorepo-v3` extracted from `@whisperithq/monorepo-v3` when you'd prefer `whisperit`).
+- **Auto-discovery already gives a good alias** — you usually don't need this skill. Only invoke it when auto-discovery produces something unwanted (e.g. `monorepo-v3` extracted from `@acmehq/monorepo-v3` when you'd prefer `acme`).

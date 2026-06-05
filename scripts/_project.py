@@ -221,7 +221,7 @@ def resolve_alias(cwd: str | None = None) -> str:
 
     Two-tier resolution (added in v0.4.3 to remove the dependency on a
     user-maintained ``project_map.json`` — the OS-memory-layer principle
-    is that Sébastien never has to edit config files):
+    is that the user never has to edit config files):
 
       Tier 1 — **Auto-discovery** from the repo's own manifest files:
         - ``package.json``  → ``name`` field (strips ``@scope/`` prefix)
@@ -319,7 +319,7 @@ def _discover_canonical_name(cwd: str, max_levels: int = 6) -> str:
     package.json for unrelated reasons). If we don't find ``.git`` within
     max_levels, we still try the cwd as a last resort.
 
-    Returns the raw name verbatim (e.g. ``"@whisperithq/monorepo"`` is
+    Returns the raw name verbatim (e.g. ``"@acme/monorepo"`` is
     returned as-is — slugification happens later only if needed for
     comparison; the agent receives the human-readable form).
 
@@ -350,7 +350,7 @@ def _discover_canonical_name(cwd: str, max_levels: int = 6) -> str:
                 pkg = json.load(f)
             name = str(pkg.get("name", "")).strip()
             if name:
-                # Strip @scope/ prefix if present (e.g. @whisperithq/monorepo
+                # Strip @scope/ prefix if present (e.g. @acme/monorepo
                 # → monorepo). Common in npm workspaces; the unscoped part
                 # is the readable name.
                 if name.startswith("@") and "/" in name:

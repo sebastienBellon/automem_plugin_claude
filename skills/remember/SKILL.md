@@ -42,7 +42,7 @@ Always start from the active project tag — read `AUTOMEM_PROJECT_ID` from the 
 
 The project slug is semantically a "context slug" — it can identify a code repo, a coaching engagement, a life theme, a journaling thread, anything continuous in time. Don't worry if the slug looks like `default` or `coaching-2026` — the tag's role is bucketing, not naming.
 
-**Dual-tag with alias (v0.4.3)** — also read `AUTOMEM_PROJECT_ALIAS` from the SessionStart banner. If it is set AND different from `AUTOMEM_PROJECT_ID`, ALSO add `"project:<AUTOMEM_PROJECT_ALIAS>"` as a second project tag. This reconciles the machine slug (auto-derived from git remote — e.g. `whisperithq-monorepo`) with the human canonical name (auto-discovered from the repo's `package.json` / `pyproject.toml` — e.g. `whisperit` or `monorepo`). A recall on either tag will match the memory. If the alias is empty or identical to the machine slug, skip this (a redundant dual-tag is worse than none).
+**Dual-tag with alias (v0.4.3)** — also read `AUTOMEM_PROJECT_ALIAS` from the SessionStart banner. If it is set AND different from `AUTOMEM_PROJECT_ID`, ALSO add `"project:<AUTOMEM_PROJECT_ALIAS>"` as a second project tag. This reconciles the machine slug (auto-derived from git remote — e.g. `acmehq-monorepo`) with the human canonical name (auto-discovered from the repo's `package.json` / `pyproject.toml` — e.g. `acme` or `monorepo`). A recall on either tag will match the memory. If the alias is empty or identical to the machine slug, skip this (a redundant dual-tag is worse than none).
 
 **Auto-inject `period:` tags (v0.4.3 — multi-tier)** — compute and add all four temporal tiers for today's date:
 

@@ -26,7 +26,7 @@ export AUTOMEM_CWD
 . "$SCRIPT_DIR/_identity.sh"
 
 # v0.4.0 dual-tag awareness: build a friendly project descriptor including
-# the alias when configured (e.g. "whisperithq-monorepo (alias: whisperit)").
+# the alias when configured (e.g. "acme-monorepo (alias: acme)").
 # Used in the banner and the scope-policy rubric so Claude knows to dual-tag.
 if [ -n "${AUTOMEM_PROJECT_ALIAS:-}" ] && [ "$AUTOMEM_PROJECT_ALIAS" != "$AUTOMEM_PROJECT_ID" ]; then
   _PROJECT_DESCRIPTOR="$AUTOMEM_PROJECT_ID (alias: $AUTOMEM_PROJECT_ALIAS)"

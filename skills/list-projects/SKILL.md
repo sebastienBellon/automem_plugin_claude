@@ -59,9 +59,9 @@ Default (compact, sorted by count desc):
 
 | Project                              |  Count |  Pinned | Newest activity |
 |--------------------------------------|--------|---------|-----------------|
-| automem-plugin                       |     18 |       3 | 2 hours ago     |
+| acme-monorepo                        |     18 |       3 | 2 hours ago     |
 | coaching-2026                        |      8 |       1 | yesterday       |
-| whisperit                            |      5 |       0 | 4 days ago      |
+| side-project                         |      5 |       0 | 4 days ago      |
 | journal-perso                        |      3 |       0 | last week       |
 | default                              |      2 |       0 | 2 weeks ago     |
 
