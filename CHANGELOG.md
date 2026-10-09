@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.5 — 2026-10-09 — Hooks run when the plugin path contains a space
+
+The four hook commands in `hooks/hooks.json` now quote `${CLAUDE_PLUGIN_ROOT}`.
+Unquoted, a plugin root under a path with a space (e.g. `Application Support`)
+split at the space and every hook failed with code 127
+(`/bin/sh: /Users/<user>/Library/Application: No such file or directory`).
+
 ## v0.4.4 — 2026-06-04 — Multi-agent safe: drop global active-project + README.md H1 fallback
 
 **Theme.** Two changes that together close the last frictionless-OS-layer
