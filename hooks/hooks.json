@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on_session_start.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/on_session_start.sh\"",
             "statusMessage": "Loading AutoMem context...",
             "timeout": 10
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on_user_prompt.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/on_user_prompt.sh\"",
             "statusMessage": "Checking memory relevance...",
             "timeout": 12
           }
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on_pre_compact.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/on_pre_compact.sh\"",
             "statusMessage": "Persisting durable facts before compaction...",
             "timeout": 10
           }
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on_stop.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/on_stop.sh\"",
             "timeout": 5
           }
         ]
